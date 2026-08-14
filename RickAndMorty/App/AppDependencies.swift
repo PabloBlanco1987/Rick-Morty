@@ -1,10 +1,9 @@
 import Foundation
 
-/// The composition root: the only place in the app where concrete types meet.
-///
-/// Everything else depends on protocols, which is what makes the graph swappable —
-/// a UI test launches the same app with a stubbed repository and nothing downstream
-/// can tell the difference.
+// Raíz de composición: el único sitio de la app donde se ven los tipos concretos.
+// Todo lo demás depende de protocolos, que es lo que hace el grafo intercambiable.
+// Un test de UI arranca la misma app con un repositorio de mentira y nadie por
+// debajo nota la diferencia.
 struct AppDependencies: Sendable {
     let fetchCharacters: FetchCharactersUseCase
     let fetchCharacterDetail: FetchCharacterDetailUseCase
@@ -14,8 +13,8 @@ struct AppDependencies: Sendable {
         self.fetchCharacterDetail = FetchCharacterDetailUseCase(repository: repository)
     }
 
-    /// The graph the shipping app runs on: retrying client → remote data source →
-    /// repository → use cases.
+    // El grafo con el que va la app en producción:
+    // cliente con reintentos -> data source remoto -> repositorio -> casos de uso
     static func live() -> AppDependencies {
         AppDependencies(
             repository: DefaultCharacterRepository(

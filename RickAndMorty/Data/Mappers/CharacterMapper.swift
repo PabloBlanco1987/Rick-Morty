@@ -1,10 +1,9 @@
 import Foundation
 
-/// Turns API payloads into domain entities.
-///
-/// Mapping is total: no input makes it fail. An unrecognised status becomes
-/// `.unknown`, an unparseable image URL becomes `nil`, an empty `type` becomes `nil`.
-/// A single odd record must never cost the user a whole page of results.
+// Convierte lo que llega de la API en entidades de dominio.
+// El mapeo no falla nunca: un status desconocido pasa a .unknown, una imagen que no
+// es URL pasa a nil, un type vacío pasa a nil. Un registro raro no puede costarle al
+// usuario la página entera de resultados.
 enum CharacterMapper {
     static func map(_ dto: CharacterDTO) -> Character {
         Character(
@@ -30,8 +29,8 @@ enum CharacterMapper {
         )
     }
 
-    /// The API hands back episode *links*; the domain wants identifiers. Anything that
-    /// does not end in an integer is dropped rather than defaulted to a wrong id.
+    // La API devuelve enlaces a los episodios y el dominio quiere ids. Lo que no
+    // acaba en un entero lo descarto, antes que meter un id equivocado por defecto.
     private static func episodeIDs(from urls: [String]) -> [Int] {
         urls.compactMap { Int(URL(string: $0)?.lastPathComponent ?? "") }
     }

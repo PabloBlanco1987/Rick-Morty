@@ -1,10 +1,8 @@
 import Foundation
 
-/// The criteria a character listing can be narrowed by.
-///
-/// Search and filtering are the same operation as far as the domain is concerned:
-/// both narrow the same listing, so they share one type and one use case instead of
-/// duplicating the pagination logic twice.
+// Criterios por los que se puede acotar el listado.
+// Para el dominio buscar y filtrar son lo mismo: los dos recortan la misma lista,
+// así que comparten tipo y caso de uso en vez de duplicar la paginación.
 struct CharacterFilter: Hashable, Sendable {
     var name: String = ""
     var status: Character.Status?
@@ -13,7 +11,7 @@ struct CharacterFilter: Hashable, Sendable {
 
     static let none = CharacterFilter()
 
-    /// Whitespace-only input is not a search term.
+    // Escribir solo espacios no cuenta como búsqueda
     var trimmedName: String {
         name.trimmingCharacters(in: .whitespacesAndNewlines)
     }

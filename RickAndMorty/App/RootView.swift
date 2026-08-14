@@ -1,12 +1,11 @@
 import SwiftUI
 
-/// Root of the view hierarchy.
-///
-/// Kept deliberately thin: its only job is to own the navigation container and
-/// hand the composed dependency graph down to the feature views.
+// Raíz de la jerarquía de vistas.
+// La dejo fina a propósito: solo monta el contenedor de navegación y pasa hacia
+// abajo el grafo de dependencias ya compuesto.
 struct RootView: View {
     var body: some View {
-        // TODO: [Phase 02] Replace with `CharacterListView`, injected from `AppDependencies`.
+        // TODO: [Fase 02] Sustituir por CharacterListView, inyectada desde AppDependencies
         ContentUnavailableView(
             "Rick & Morty",
             systemImage: "person.3.sequence",

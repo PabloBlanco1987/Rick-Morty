@@ -17,8 +17,8 @@ struct CharacterRemoteDataSourceTests {
 
     @Test("A single id answers with a bare object and still comes back as an array")
     func singleEpisodeIsWrapped() async throws {
-        // The endpoint's shape changes with the number of ids — this is the case that
-        // silently breaks a naive `[EpisodeDTO].self` decode.
+        // El endpoint cambia de forma según cuántos ids pidas, y este es el caso que
+        // rompe sin avisar si decodificas directamente a [EpisodeDTO].self
         let stub = StubHTTPClient(json: JSONFixtures.singleEpisode)
         let sut = CharacterRemoteDataSource(client: stub)
 

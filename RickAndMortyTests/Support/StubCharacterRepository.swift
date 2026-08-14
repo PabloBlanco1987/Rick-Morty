@@ -1,8 +1,8 @@
 import Foundation
 @testable import RickAndMorty
 
-/// A `CharacterRepository` with scripted results, for testing use cases in isolation
-/// from anything that resembles a network.
+// CharacterRepository con resultados preparados, para probar los casos de uso sin
+// nada que se parezca a una red
 actor StubCharacterRepository: CharacterRepository {
     private let charactersResult: Result<Page<Character>, AppError>
     private let characterResult: Result<Character, AppError>
@@ -39,7 +39,7 @@ actor StubCharacterRepository: CharacterRepository {
 }
 
 extension Character {
-    /// A valid character, with only the fields a given test cares about overridden.
+    // Un personaje válido, del que cada test solo sobrescribe lo que le importa
     static func stub(
         id: Int = 1,
         name: String = "Rick Sanchez",

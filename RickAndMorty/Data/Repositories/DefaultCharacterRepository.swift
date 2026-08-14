@@ -1,6 +1,6 @@
 import Foundation
 
-/// Fulfils the domain's `CharacterRepository` contract against the live API.
+// Cumple el contrato CharacterRepository del dominio contra la API real
 struct DefaultCharacterRepository: CharacterRepository {
     private let remote: CharacterRemoteDataSource
 
@@ -13,19 +13,19 @@ struct DefaultCharacterRepository: CharacterRepository {
             let dto = try await remote.characters(page: page, filter: filter)
             return CharacterMapper.map(dto, page: page)
         } catch {
-            // The API answers a filter that matches nothing with 404 and an error body,
-            // not with an empty `results` array. "No results" is an outcome of a search,
-            // not a failure of it, so it is translated here — at the layer that knows
-            // this particular API's habits — and the UI gets an empty state instead of
-            // a red error screen.
+            // Cuando un filtro no encuentra nada, la API contesta 404 con un cuerpo de
+            // error, no con un results vacío. Que no haya resultados es el resultado de
+            // una búsqueda, no un fallo, así que lo traduzco aquí, que es la capa que
+            // conoce las manías de esta API, y la UI enseña un estado vacío en vez de
+            // una pantalla de error.
             if error == .notFound { return .empty(page: page) }
             throw error
         }
     }
 
     func character(id: Int) async throws(AppError) -> Character {
-        // No 404 translation here on purpose: asking for a character that does not
-        // exist is a genuine not-found, and the detail screen should say so.
+        // Aquí no traduzco el 404 a propósito: pedir un personaje que no existe sí es
+        // un no encontrado de verdad, y la pantalla de detalle tiene que decirlo.
         CharacterMapper.map(try await remote.character(id: id))
     }
 

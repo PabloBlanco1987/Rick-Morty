@@ -1,6 +1,6 @@
 import Foundation
 
-/// The API's pagination envelope, generic over whatever it wraps.
+// El sobre de paginación de la API, genérico sobre lo que venga dentro
 struct PageDTO<Item: Decodable & Sendable>: Decodable, Sendable {
     struct Info: Decodable, Sendable {
         let count: Int

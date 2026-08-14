@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import RickAndMorty
 
-/// Records the backoff sequence in place of actually sleeping, so the whole suite
-/// runs in milliseconds instead of seconds.
+// Apunta la secuencia de esperas en vez de dormir de verdad, así la suite entera
+// tarda milisegundos y no segundos
 private actor SleepRecorder {
     private(set) var durations: [Duration] = []
     func record(_ duration: Duration) { durations.append(duration) }
@@ -76,7 +76,7 @@ struct RetryingHTTPClientTests {
 
         _ = try? await sut.send(anyEndpoint, as: CharacterDTO.self)
 
-        // Three attempts means two waits: one before the second, one before the third.
+        // Tres intentos son dos esperas: una antes del segundo y otra antes del tercero
         await #expect(recorder.durations == [.milliseconds(300), .milliseconds(600)])
     }
 

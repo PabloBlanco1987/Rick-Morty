@@ -19,9 +19,9 @@ struct DefaultCharacterRepositoryTests {
 
     @Test("A search that matches nothing is an empty result, not an error")
     func notFoundOnListingBecomesEmptyPage() async throws {
-        // The API answers `?name=zzzz` with 404 rather than an empty `results` array.
-        // Surfacing that as a failure would show an error screen for an ordinary
-        // "no matches" search, so it is translated here.
+        // La API contesta a ?name=zzzz con un 404, no con un results vacío. Dejarlo
+        // pasar como fallo sería enseñar una pantalla de error por una búsqueda
+        // normal sin resultados, así que se traduce aquí.
         let page = try await makeSUT(.failure(.notFound)).characters(page: 1, filter: CharacterFilter(name: "zzzz"))
 
         #expect(page.items.isEmpty)
@@ -46,8 +46,8 @@ struct DefaultCharacterRepositoryTests {
 
     @Test("A missing character stays a genuine notFound on the detail path")
     func notFoundOnDetailStaysAnError() async {
-        // Same status code, opposite meaning: nobody searched for character 9999,
-        // they navigated to it, so "there is nothing here" is a real error.
+        // Mismo código, significado contrario: nadie ha buscado el personaje 9999,
+        // se ha navegado a él, así que aquí "no hay nada" sí es un error de verdad
         let sut = makeSUT(.failure(.notFound))
 
         await #expect(throws: AppError.notFound) {

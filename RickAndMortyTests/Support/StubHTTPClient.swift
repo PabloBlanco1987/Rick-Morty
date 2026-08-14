@@ -1,12 +1,11 @@
 import Foundation
 @testable import RickAndMorty
 
-/// An `HTTPClient` that answers from a script of canned outcomes and records what it
-/// was asked for.
-///
-/// An `actor` rather than a lock-guarded class: the recording is mutable state shared
-/// across concurrent calls, and the protocol requirement is already `async`, so actor
-/// isolation satisfies it without any `@unchecked Sendable`.
+// HTTPClient que contesta desde una lista de respuestas preparadas y apunta lo que
+// le han pedido.
+// Es un actor y no una clase con lock: lo que apunta es estado mutable compartido
+// entre llamadas concurrentes, y como el protocolo ya es async, el aislamiento del
+// actor lo cumple sin ningún @unchecked Sendable.
 actor StubHTTPClient: HTTPClient {
     enum Outcome: Sendable {
         case json(String)
@@ -18,8 +17,8 @@ actor StubHTTPClient: HTTPClient {
 
     var callCount: Int { requestedEndpoints.count }
 
-    /// Outcomes are consumed in order; the last one repeats forever, so a retry test
-    /// can hand over a single failure and still describe every attempt.
+    // Las respuestas se consumen en orden y la última se repite siempre, así un test
+    // de reintentos puede pasar un solo fallo y cubrir todos los intentos
     init(_ outcomes: [Outcome]) {
         precondition(!outcomes.isEmpty, "A stub with no outcomes cannot answer anything")
         self.outcomes = outcomes

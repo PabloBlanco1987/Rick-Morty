@@ -1,30 +1,28 @@
 import Foundation
 
-/// The only error type that crosses a layer boundary.
-///
-/// `URLError`, `DecodingError` and HTTP status codes are all translated into this
-/// closed set inside the Data layer, so neither the domain nor the view models ever
-/// have to know what a status code is. Presentation turns each case into copy.
+// El único error que cruza una frontera entre capas.
+// URLError, DecodingError y los códigos HTTP se traducen a estos casos dentro de la
+// capa de datos, así ni el dominio ni los view models saben qué es un status code.
+// Presentación convierte cada caso en su texto.
 enum AppError: Error, Equatable, Sendable {
-    /// The device has no usable connection.
+    // No hay conexión
     case offline
-    /// The request outlived its timeout.
+    // La petición se pasó del timeout
     case timeout
-    /// The resource genuinely does not exist.
+    // El recurso no existe de verdad
     case notFound
-    /// The server answered, but not with a success status.
+    // El servidor contesta, pero no con un 2xx
     case server(statusCode: Int)
-    /// The payload arrived but did not match the expected shape.
+    // Llega el payload pero no tiene la forma esperada
     case decoding
-    /// The caller cancelled — usually a superseded search. Never shown to the user.
+    // Cancelado, normalmente una búsqueda que ya no vale. No se enseña nunca
     case cancelled
     case unknown
 
-    /// Whether an automatic retry stands a reasonable chance of succeeding.
-    ///
-    /// Connectivity loss is excluded on purpose: retrying 300 ms after the radio
-    /// dropped almost never helps, and it is better UX to surface a Retry button
-    /// immediately than to spin for a second first.
+    // Si reintentar solo tiene sentido o no.
+    // La falta de conexión queda fuera aposta: reintentar 300 ms después de perder
+    // cobertura casi nunca funciona, y prefiero enseñar el botón de reintentar ya
+    // que tener al usuario un segundo mirando un spinner.
     var isRetryable: Bool {
         switch self {
         case .timeout:

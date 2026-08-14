@@ -1,12 +1,12 @@
 import Foundation
 
-/// An episode a character appears in.
+// Episodio en el que sale un personaje
 struct Episode: Identifiable, Hashable, Sendable {
     let id: Int
     let name: String
-    /// Season/episode code as the show numbers it, e.g. `S01E01`.
+    // Código de temporada/episodio, tipo S01E01
     let code: String
-    /// `nil` when the API's air date cannot be parsed. Presentation formats this for
-    /// the current locale; the domain never stores a pre-formatted string.
+    // nil si no se puede parsear la fecha que manda la API.
+    // El formateo para el locale lo hace presentación, aquí no guardamos texto ya formateado.
     let airDate: Date?
 }

@@ -1,11 +1,9 @@
 import Foundation
 
-/// The character payload exactly as the API sends it.
-///
-/// Only the fields the app consumes are declared — `url` and `created` are ignored
-/// rather than carried around unused. Keeping the DTO separate from `Character` is
-/// what lets the API add, rename or loosen a field without the change rippling past
-/// `CharacterMapper`.
+// El personaje tal cual lo manda la API.
+// Solo declaro los campos que uso; url y created los ignoro en vez de arrastrarlos.
+// Tener el DTO separado de Character es lo que permite que la API añada, renombre o
+// afloje un campo sin que el cambio pase de CharacterMapper.
 struct CharacterDTO: Decodable, Sendable, Equatable {
     let id: Int
     let name: String

@@ -1,10 +1,9 @@
 import Foundation
 
-/// Fetches one page of characters, optionally narrowed by a filter.
-///
-/// There is no separate `SearchCharactersUseCase`: searching *is* listing with a
-/// filter applied, and the pagination rules are identical. Splitting them would
-/// duplicate that logic for the sake of a name.
+// Trae una página de personajes, con filtro si hace falta.
+// No hay un SearchCharactersUseCase aparte: buscar es listar con un filtro puesto y
+// las reglas de paginación son las mismas. Separarlos sería duplicar esa lógica
+// solo para tener otro nombre.
 struct FetchCharactersUseCase: Sendable {
     private let repository: any CharacterRepository
 
