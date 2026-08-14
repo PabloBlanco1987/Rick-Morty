@@ -4,10 +4,10 @@ import Testing
 
 @Suite("Endpoint and API catalogue")
 struct EndpointTests {
-    private let baseURL = RickAndMortyAPI.baseURL
+    private let base = RickAndMortyAPI.base
 
     private func url(_ endpoint: Endpoint) throws -> URL {
-        try #require(endpoint.urlRequest(baseURL: baseURL)?.url)
+        try #require(endpoint.urlRequest(base: base)?.url)
     }
 
     @Test("An unfiltered listing asks only for a page")
@@ -39,8 +39,8 @@ struct EndpointTests {
 
     @Test("Reserved characters in a search term are percent-encoded")
     func encodesSearchTerm() throws {
-        // The naive string-interpolated URL this replaces would have produced a
-        // malformed request for any of these.
+        // Montando la URL a base de interpolar strings, cualquiera de estos casos
+        // habría acabado en una petición mal formada
         let url = try url(RickAndMortyAPI.characters(page: 1, filter: CharacterFilter(name: "rick & morty")))
         let query = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
 
@@ -63,7 +63,7 @@ struct EndpointTests {
 
     @Test("Requests declare the method and accept JSON")
     func requestShape() throws {
-        let request = try #require(RickAndMortyAPI.character(id: 1).urlRequest(baseURL: baseURL))
+        let request = try #require(RickAndMortyAPI.character(id: 1).urlRequest(base: base))
         #expect(request.httpMethod == "GET")
         #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
     }

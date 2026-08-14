@@ -1,12 +1,21 @@
 import Foundation
 
-/// The catalogue of endpoints this app uses.
-///
-/// Confining every path and query-parameter name to one file means the API's
-/// vocabulary appears exactly once. `CharacterFilter` is a domain type; translating
-/// it into `?status=alive&gender=female` is a Data-layer concern and belongs here.
+// El catálogo de endpoints que usa la app.
+// Teniendo todas las rutas y nombres de parámetros en un fichero, el vocabulario de
+// la API aparece una sola vez. CharacterFilter es un tipo de dominio; traducirlo a
+// ?status=alive&gender=female es cosa de la capa de datos y va aquí.
 enum RickAndMortyAPI {
-    static let baseURL = URL(string: "https://rickandmortyapi.com/api")!
+    // La base por partes, en vez de parseada desde un string.
+    // URLComponents no puede fallar al construirse, así que aquí no hay que dar por
+    // bueno ningún literal. El único punto donde montar la URL todavía puede fallar
+    // es Endpoint.urlRequest, y ahí ya se avisa.
+    static let base: URLComponents = {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "rickandmortyapi.com"
+        components.path = "/api"
+        return components
+    }()
 
     static func characters(page: Int, filter: CharacterFilter = .none) -> Endpoint {
         var items = [URLQueryItem(name: "page", value: String(page))]
@@ -31,12 +40,10 @@ enum RickAndMortyAPI {
         Endpoint(path: "/character/\(id)")
     }
 
-    /// The batch endpoint: one request for every episode a character appears in,
-    /// instead of one request per episode.
-    ///
-    /// Note the shape change it hides — `/episode/1,2` answers with an array while
-    /// `/episode/1` answers with a single object. `CharacterRemoteDataSource` is where
-    /// that quirk is absorbed.
+    // Endpoint de lote: una petición para todos los episodios de un personaje en
+    // vez de una por episodio.
+    // Ojo al cambio de forma que esconde: /episode/1,2 contesta con un array y
+    // /episode/1 con un objeto suelto. Eso lo absorbe CharacterRemoteDataSource.
     static func episodes(ids: [Int]) -> Endpoint {
         Endpoint(path: "/episode/\(ids.map(String.init).joined(separator: ","))")
     }

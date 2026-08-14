@@ -1,17 +1,17 @@
 import Foundation
 import Synchronization
 
-/// Intercepts requests inside a real `URLSession` so `URLSessionHTTPClient` can be
-/// tested against actual session plumbing — status codes, transport errors, response
-/// objects — without a single packet leaving the machine.
-///
-/// Shared state is guarded by `Mutex` rather than `nonisolated(unsafe)`; suites that
-/// use it are marked `.serialized`, since `URLProtocol` registration is process-wide.
+// Intercepta las peticiones dentro de una URLSession de verdad, para poder probar
+// URLSessionHTTPClient contra la fontanería real de la sesión (códigos de estado,
+// errores de transporte, objetos de respuesta) sin que salga un solo paquete.
+// El estado compartido va con Mutex y no con nonisolated(unsafe), y las suites que
+// lo usan están marcadas .serialized porque registrar un URLProtocol afecta a todo
+// el proceso.
 final class StubURLProtocol: URLProtocol {
     struct Stub: Sendable {
         var statusCode: Int = 200
-        var body: Data = Data()
-        /// When set, the transport fails instead of answering.
+        var body = Data()
+        // Si está puesto, la petición falla en transporte en vez de contestar
         var error: URLError?
         var headers: [String: String] = ["Content-Type": "application/json"]
 
@@ -32,7 +32,7 @@ final class StubURLProtocol: URLProtocol {
 
     static var lastRequest: URLRequest? { requests.withLock { $0.last } }
 
-    /// An ephemeral session with caching off, so a test never reads another test's answer.
+    // Sesión efímera y sin caché, para que un test no lea la respuesta de otro
     static func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
@@ -41,8 +41,8 @@ final class StubURLProtocol: URLProtocol {
         return URLSession(configuration: configuration)
     }
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func stopLoading() {}
 
     override func startLoading() {

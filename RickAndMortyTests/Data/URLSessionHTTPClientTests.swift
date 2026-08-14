@@ -2,13 +2,13 @@ import Foundation
 import Testing
 @testable import RickAndMorty
 
-/// Serialized because `StubURLProtocol` holds process-wide state: `URLProtocol`
-/// registration is global, so two of these running at once would answer each other's
-/// requests.
+// Serializada porque StubURLProtocol guarda estado a nivel de proceso: el registro
+// de URLProtocol es global, así que dos de estas a la vez se contestarían las
+// peticiones la una a la otra.
 @Suite("URLSession HTTP client", .serialized)
 struct URLSessionHTTPClientTests {
     private let sut = URLSessionHTTPClient(
-        baseURL: RickAndMortyAPI.baseURL,
+        base: RickAndMortyAPI.base,
         session: StubURLProtocol.makeSession()
     )
 

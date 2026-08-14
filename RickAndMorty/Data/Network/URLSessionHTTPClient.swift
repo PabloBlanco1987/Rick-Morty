@@ -1,16 +1,15 @@
 import Foundation
 
-/// The one place in the app that talks to the network.
-///
-/// Every failure mode — transport, status code, malformed payload — is translated
-/// into `AppError` before it leaves this type, so `URLError` and `DecodingError`
-/// never escape the Data layer.
+// El único sitio de la app que habla con la red.
+// Todo lo que puede fallar (transporte, código de estado, payload roto) se traduce a
+// AppError antes de salir de aquí, así que URLError y DecodingError no se escapan
+// nunca de la capa de datos.
 struct URLSessionHTTPClient: HTTPClient {
-    private let baseURL: URL
+    private let base: URLComponents
     private let session: URLSession
 
-    init(baseURL: URL = RickAndMortyAPI.baseURL, session: URLSession = .rickAndMorty) {
-        self.baseURL = baseURL
+    init(base: URLComponents = RickAndMortyAPI.base, session: URLSession = .rickAndMorty) {
+        self.base = base
         self.session = session
     }
 
@@ -18,7 +17,7 @@ struct URLSessionHTTPClient: HTTPClient {
         _ endpoint: Endpoint,
         as type: Response.Type
     ) async throws(AppError) -> Response {
-        guard let request = endpoint.urlRequest(baseURL: baseURL) else {
+        guard let request = endpoint.urlRequest(base: base) else {
             throw .unknown
         }
 
@@ -46,9 +45,9 @@ struct URLSessionHTTPClient: HTTPClient {
         }
 
         do {
-            // A `JSONDecoder` is not `Sendable`, so it is built per call rather than
-            // stored. Allocating one costs microseconds against a request measured in
-            // tens of milliseconds — not a trade worth an `@unchecked Sendable`.
+            // JSONDecoder no es Sendable, así que lo creo en cada llamada en vez de
+            // guardarlo. Crearlo cuesta microsegundos frente a una petición de
+            // decenas de milisegundos: no compensa un @unchecked Sendable.
             return try JSONDecoder.rickAndMorty.decode(Response.self, from: data)
         } catch {
             throw .decoding
@@ -71,12 +70,11 @@ struct URLSessionHTTPClient: HTTPClient {
 }
 
 extension URLSession {
-    /// The session the app ships with.
-    ///
-    /// The private `URLCache` is the whole of the response-caching story: the API
-    /// serves `ETag` and `Cache-Control`, and `.useProtocolCachePolicy` means a page
-    /// already seen is revalidated with a conditional request — a 304 with no body —
-    /// or served straight from disk. No hand-rolled cache layer needed.
+    // La sesión con la que va la app.
+    // Toda la caché de respuestas es este URLCache privado: la API manda ETag y
+    // Cache-Control, y con .useProtocolCachePolicy una página ya vista se revalida
+    // con una petición condicional (un 304 sin cuerpo) o sale directamente de disco.
+    // No hace falta montar ninguna caché a mano.
     static let rickAndMorty: URLSession = {
         let configuration = URLSessionConfiguration.default
         configuration.urlCache = URLCache(
@@ -91,8 +89,8 @@ extension URLSession {
 }
 
 extension JSONDecoder {
-    /// The API is uniformly snake_case (`air_date`, `created`), so one strategy
-    /// replaces a `CodingKeys` enum in every DTO.
+    // La API es toda snake_case (air_date, created), así que con una estrategia me
+    // ahorro un CodingKeys en cada DTO
     static var rickAndMorty: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
