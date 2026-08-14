@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Xcode — user-specific state, never shared
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Build products
+build/
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.moved-aside
+
+# Swift Package Manager
+.build/
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
