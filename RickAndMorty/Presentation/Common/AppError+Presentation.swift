@@ -9,11 +9,12 @@ import Foundation
 // hacer el usuario. "Error 500" no es ninguna de las dos cosas, y un código de estado
 // no le dice nada a nadie que no esté leyendo los logs.
 //
-// TODO: [Fase 05] Los textos están en inglés y en el código. Se quedan así porque
-// localizar de verdad es sacar el catálogo de String Catalogs, decidir la pluralización
-// y revisar que los textos largos no rompan el layout en alemán, y eso es una fase
-// entera. Entrarían como LocalizedStringResource sobre un Localizable.xcstrings, sin
-// tocar la forma de esta extensión.
+// Los textos están en inglés y escritos en el código. Se quedan así a sabiendas:
+// localizar de verdad es sacar un String Catalog, decidir las pluralizaciones y
+// comprobar que los textos largos no rompan el layout en alemán, y eso es una tarea en
+// sí misma. Lo que importa es que el sitio ya está preparado: entrarían como
+// LocalizedStringResource sobre un Localizable.xcstrings sin cambiar la forma de esta
+// extensión ni tocar una sola vista. Ver README, "Límites conocidos".
 extension AppError {
     var title: String {
         switch self {

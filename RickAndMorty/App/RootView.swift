@@ -10,8 +10,14 @@ struct RootView: View {
     // volvería a empezar por la página uno.
     @State private var characterList: CharacterListViewModel
 
+    // Se guarda entero porque el destino de navegación se construye cuando el usuario
+    // toca una celda, no al montar la pantalla, y para entonces hace falta el caso de
+    // uso del detalle.
+    private let dependencies: AppDependencies
+
     @MainActor
     init(dependencies: AppDependencies) {
+        self.dependencies = dependencies
         _characterList = State(
             initialValue: CharacterListViewModel(fetchCharacters: dependencies.fetchCharacters)
         )
@@ -20,6 +26,17 @@ struct RootView: View {
     var body: some View {
         NavigationStack {
             CharacterListView(viewModel: characterList)
+                // La navegación va por valor y no por vistas metidas dentro del enlace:
+                // así la celda solo declara a dónde lleva y esta pantalla —la única que
+                // conoce el grafo— decide qué se construye con ello. Es lo que evita
+                // tener que arrastrar las dependencias del detalle a través del listado
+                // y de cada celda.
+                .navigationDestination(for: Character.self) { character in
+                    CharacterDetailView(
+                        character: character,
+                        fetchCharacterDetail: dependencies.fetchCharacterDetail
+                    )
+                }
         }
     }
 }

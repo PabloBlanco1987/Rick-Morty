@@ -45,8 +45,8 @@ struct CharacterFilterTests {
     }
 
     @Test("The default filter is inert")
-    func noneIsEmpty() {
-        #expect(CharacterFilter.none.isEmpty)
+    func emptyIsInert() {
+        #expect(CharacterFilter.empty.isEmpty)
     }
 }
 

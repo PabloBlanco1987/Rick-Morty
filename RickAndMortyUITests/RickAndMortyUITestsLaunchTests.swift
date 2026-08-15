@@ -1,14 +1,10 @@
-//
-//  RickAndMortyUITestsLaunchTests.swift
-//  RickAndMortyUITests
-//
-//  Created by Pablo Blanco on 14/08/2026.
-//
-
 import XCTest
 
+// Comprueba que la app arranca y deja una captura de la primera pantalla en el informe.
+// Se ejecuta una vez por configuración de la aplicación —idioma, tamaño de letra— que
+// tenga el plan de pruebas, que es lo que lo hace útil: la captura enseña si el listado
+// se rompe con Dynamic Type sin que nadie tenga que abrir el simulador.
 final class RickAndMortyUITestsLaunchTests: XCTestCase {
-
     override static var runsForEachTargetApplicationUIConfiguration: Bool {
         true
     }
@@ -20,15 +16,18 @@ final class RickAndMortyUITestsLaunchTests: XCTestCase {
     @MainActor
     func testLaunch() throws {
         let app = XCUIApplication()
+        // Con datos fijos, igual que el resto de la suite: si no, la captura depende de
+        // que la API conteste y de qué conteste
+        app.launchArguments = ["-stubbed-data"]
         app.launch()
 
-        // Insert steps here to perform after app launch but before taking a screenshot,
-        // such as logging into a test account or navigating somewhere in the app
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+        XCTAssertTrue(
+            app.buttons["character-1"].waitForExistence(timeout: 10),
+            "The app launched but the list never appeared"
+        )
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "Launch Screen"
+        attachment.name = "Character list"
         attachment.lifetime = .keepAlways
         add(attachment)
     }

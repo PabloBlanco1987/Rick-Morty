@@ -46,6 +46,10 @@ struct CharacterCard: View, Equatable {
         // que pasar por imagen, nombre y estado por separado la hace impracticable.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
+        // El identificador es para los tests de UI y no lo lee nadie en voz alta: es lo
+        // que les deja señalar una celda concreta sin depender del texto, que cambia con
+        // el idioma y con lo que conteste la API
+        .accessibilityIdentifier("character-\(character.id)")
     }
 
     // El orden es el que importa al escuchar: quién es, qué es y si sigue vivo.

@@ -10,7 +10,7 @@ struct DefaultCharacterRepositoryTests {
 
     @Test("A listing is mapped into domain characters carrying the requested page")
     func mapsListing() async throws {
-        let page = try await makeSUT(.json(JSONFixtures.charactersPage)).characters(page: 1, filter: .none)
+        let page = try await makeSUT(.json(JSONFixtures.charactersPage)).characters(page: 1, filter: .empty)
 
         #expect(page.items.map(\.name) == ["Rick Sanchez", "Morty Smith"])
         #expect(page.totalPages == 42)
@@ -40,7 +40,7 @@ struct DefaultCharacterRepositoryTests {
         let sut = makeSUT(.failure(.server(statusCode: 500)))
 
         await #expect(throws: AppError.server(statusCode: 500)) {
-            _ = try await sut.characters(page: 1, filter: .none)
+            _ = try await sut.characters(page: 1, filter: .empty)
         }
     }
 

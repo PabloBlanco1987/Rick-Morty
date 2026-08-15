@@ -20,10 +20,17 @@ struct FetchCharacterDetailUseCase: Sendable {
             return CharacterDetail(character: character, episodes: [])
         }
 
-        // TODO: [Fuera de alcance · README §6] Si solo falla la petición de episodios,
-        // enseñar el personaje con un aviso de "episodios no disponibles" en vez de
-        // tirar la pantalla entera. Hacerlo bien pide un tipo de resultado parcial,
-        // que es más de lo que necesita el MVP.
+        // Si esto falla, falla la operación entera: el caso de uso devuelve el detalle
+        // completo o no devuelve nada. Que el usuario acabe viendo igualmente el
+        // personaje cuando venía de la lista lo resuelve CharacterDetailViewModel, que
+        // conserva lo que ya tenía y enseña el error solo en la sección de episodios.
+        //
+        // Lo que queda sin cubrir es entrar directamente al detalle —un enlace profundo,
+        // una notificación— y que fallen solo los episodios: ahí no hay nada que
+        // conservar y se pierde también el personaje, que sí había llegado. Arreglarlo
+        // bien pide devolver un resultado parcial (el personaje más el estado de sus
+        // episodios) y es más tipo del que necesita esta pantalla hoy. Ver README,
+        // "Límites conocidos".
         let episodes = try await repository.episodes(ids: character.episodeIDs)
         return CharacterDetail(character: character, episodes: episodes)
     }

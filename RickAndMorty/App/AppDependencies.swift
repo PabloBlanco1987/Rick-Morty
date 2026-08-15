@@ -24,4 +24,16 @@ struct AppDependencies: Sendable {
             )
         )
     }
+
+    // El que se monta al arrancar. Normalmente es el de producción; cuando lo lanza un
+    // test de UI, el mismo grafo con datos en memoria. Es el único sitio donde eso se
+    // decide, y por debajo de aquí no hay una sola línea que cambie.
+    static func forLaunch() -> AppDependencies {
+        #if DEBUG
+        if LaunchEnvironment.isStubbed {
+            return AppDependencies(repository: StubbedCharacterRepository())
+        }
+        #endif
+        return .live()
+    }
 }

@@ -57,9 +57,6 @@ opt_in_rules:
   - yoda_condition
 
 disabled_rules:
-  # The project documents with `///`; TODO/FIXME are not used to park debt, so
-  # the rule would only add noise.
-  - todo
   # House style keeps a trailing comma in multi-line literals: adding an entry
   # touches one line and the diff stays clean.
   - trailing_comma

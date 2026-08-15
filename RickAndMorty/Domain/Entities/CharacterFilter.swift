@@ -9,7 +9,13 @@ struct CharacterFilter: Hashable, Sendable {
     var gender: Character.Gender?
     var species: String = ""
 
-    static let none = CharacterFilter()
+    // Se llama `empty` y no `none` por una razón muy concreta: `Optional` ya tiene un
+    // miembro `.none`, así que con ese nombre una comparación como
+    // `requestedFilters.last == .none` compila sin quejarse y pregunta si el opcional
+    // es nil, no si el filtro está vacío. Es un fallo silencioso —el test pasa a verde
+    // por el motivo equivocado— y el nombre es lo único que hay que cambiar para que no
+    // pueda ocurrir. Además queda al lado de `Page.empty`, que ya usa esa palabra.
+    static let empty = CharacterFilter()
 
     // Escribir solo espacios no cuenta como búsqueda
     var trimmedName: String {

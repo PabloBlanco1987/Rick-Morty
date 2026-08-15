@@ -7,12 +7,17 @@ actor StubCharacterRepository: CharacterRepository {
     private var charactersByPage: [Int: Result<Page<Character>, AppError>]
     private let charactersFallback: Result<Page<Character>, AppError>
     private let characterResult: Result<Character, AppError>
-    private let episodesResult: Result<[Episode], AppError>
+    private var episodesResult: Result<[Episode], AppError>
 
     private(set) var requestedEpisodeIDs: [[Int]] = []
     private(set) var requestedPages: [Int] = []
+    // Con qué criterios se ha pedido cada listado: es lo que distingue una búsqueda que
+    // llega al servidor de una que se queda filtrando en el móvil lo poco que ya tenía
+    private(set) var requestedFilters: [CharacterFilter] = []
+    private(set) var requestedCharacterIDs: [Int] = []
 
     var episodesCallCount: Int { requestedEpisodeIDs.count }
+    var requestedSearchTerms: [String] { requestedFilters.map(\.trimmedName) }
 
     init(
         characters: Result<Page<Character>, AppError> = .success(.empty()),
@@ -46,13 +51,21 @@ actor StubCharacterRepository: CharacterRepository {
         charactersByPage[page] = result
     }
 
+    // Lo mismo para los episodios, que es lo que hace falta para probar que un
+    // reintento se recupera: primero se cae y a la segunda contesta
+    func setEpisodes(_ result: Result<[Episode], AppError>) {
+        episodesResult = result
+    }
+
     func characters(page: Int, filter: CharacterFilter) async throws(AppError) -> Page<Character> {
         requestedPages.append(page)
+        requestedFilters.append(filter)
         return try (charactersByPage[page] ?? charactersFallback).get()
     }
 
     func character(id: Int) async throws(AppError) -> Character {
-        try characterResult.get()
+        requestedCharacterIDs.append(id)
+        return try characterResult.get()
     }
 
     func episodes(ids: [Int]) async throws(AppError) -> [Episode] {

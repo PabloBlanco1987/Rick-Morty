@@ -21,9 +21,15 @@ final class CharacterListViewModel {
     // scroll. El fallo se cuenta en el pie, con su botón de reintentar.
     private(set) var nextPageError: AppError?
 
-    // internal y no private a propósito: los tests esperan a esta tarea para saber que
+    // Los criterios activos. Es de solo lectura desde fuera porque cambiarlos no es
+    // asignar un valor: es tirar la lista, reiniciar la paginación y lanzar una
+    // petición. Todo eso pasa por los accesos de abajo, que son los que la vista usa.
+    private(set) var filter: CharacterFilter = .empty
+
+    // internal y no private a propósito: los tests esperan a estas tareas para saber que
     // la carga ha terminado. Es lo que permite que la suite no tenga ni un sleep.
     @ObservationIgnored private(set) var pagingTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var searchTask: Task<Void, Never>?
 
     private let fetchCharacters: FetchCharactersUseCase
 
@@ -65,6 +71,15 @@ final class CharacterListViewModel {
     // hasta que lo haya de verdad.
     private static let gapBetweenPages: Duration = .milliseconds(400)
 
+    // Lo que se espera desde la última tecla antes de preguntarle al servidor.
+    //
+    // La búsqueda es del servidor, así que sin esta espera escribir "rick" son cuatro
+    // peticiones de las que solo importa la última: las tres primeras salen, gastan
+    // conexión y llegan para ser descartadas. Trescientos cincuenta milisegundos es más
+    // que la pausa entre dos teclas escribiendo de corrido y bastante menos de lo que se
+    // percibe como que la app no responde.
+    private static let searchDebounce: Duration = .milliseconds(350)
+
     init(
         fetchCharacters: FetchCharactersUseCase,
         // Inyectable para que los tests comprueben el freno sin dormir de verdad, igual
@@ -73,6 +88,89 @@ final class CharacterListViewModel {
     ) {
         self.fetchCharacters = fetchCharacters
         self.sleep = sleep
+    }
+
+    // MARK: - Búsqueda y filtros
+
+    // La vista bindea contra estos accesos y no contra `filter` directamente. Escribir
+    // en ellos no deja el criterio guardado para luego: dispara la recarga que toca, y
+    // cada uno sabe si lo suyo se teclea —y entonces hay que esperar a que el usuario
+    // pare— o se toca una vez.
+    var searchText: String {
+        get { filter.name }
+        set {
+            let previous = filter.trimmedName
+            filter.name = newValue
+            // Añadir un espacio al final no es buscar otra cosa. Sin esta comparación,
+            // la barra de búsqueda de iOS —que recorta y vuelve a escribir el texto al
+            // perder el foco— acabaría repitiendo la misma petición.
+            guard filter.trimmedName != previous else { return }
+            reload(afterTyping: true)
+        }
+    }
+
+    var speciesFilter: String {
+        get { filter.species }
+        set {
+            let previous = filter.trimmedSpecies
+            filter.species = newValue
+            guard filter.trimmedSpecies != previous else { return }
+            reload(afterTyping: true)
+        }
+    }
+
+    // Estos dos se eligen de una lista, no se teclean: no hay ninguna tecla siguiente
+    // que esperar, así que la petición sale ya
+    var statusFilter: Character.Status? {
+        get { filter.status }
+        set {
+            guard newValue != filter.status else { return }
+            filter.status = newValue
+            reload(afterTyping: false)
+        }
+    }
+
+    var genderFilter: Character.Gender? {
+        get { filter.gender }
+        set {
+            guard newValue != filter.gender else { return }
+            filter.gender = newValue
+            reload(afterTyping: false)
+        }
+    }
+
+    var hasActiveFilters: Bool { !filter.isEmpty }
+
+    func clearFilters() {
+        guard !filter.isEmpty else { return }
+        filter = .empty
+        reload(afterTyping: false)
+    }
+
+    // Un cambio de criterio no es una página más: es otra lista. Se tira lo cargado, se
+    // vuelve a la página uno y se cancela lo que hubiera en vuelo, porque una respuesta
+    // de la búsqueda anterior que llegue tarde no puede acabar pintada bajo un filtro
+    // que ya no es el que está puesto.
+    private func reload(afterTyping: Bool) {
+        searchTask?.cancel()
+        pagingTask?.cancel()
+        pagingTask = nil
+        isLoadingNextPage = false
+        nextPageError = nil
+        lastPage = nil
+
+        searchTask = Task { [weak self] in
+            guard let self else { return }
+
+            if afterTyping {
+                await sleep(Self.searchDebounce)
+                // Si mientras se esperaba ha llegado otra tecla, esta búsqueda ya no
+                // vale: la ha reemplazado la siguiente y aquí no se pide nada
+                guard !Task.isCancelled else { return }
+            }
+
+            await loadFirstPage(showingPlaceholder: true)
+        }
     }
 
     // MARK: - Pantalla
@@ -93,6 +191,8 @@ final class CharacterListViewModel {
     // indicador; enseñar además los esqueletos sería tapar la lista que el usuario
     // tiene delante mientras tira de ella.
     func refresh() async {
+        searchTask?.cancel()
+        searchTask = nil
         pagingTask?.cancel()
         pagingTask = nil
         isLoadingNextPage = false
@@ -103,8 +203,15 @@ final class CharacterListViewModel {
     private func loadFirstPage(showingPlaceholder: Bool) async {
         if showingPlaceholder { state = .loading }
 
+        // El filtro se lee aquí y se lleva hasta el final: si cambia mientras la
+        // petición está en vuelo, lo que llegue se compara contra el que se pidió y no
+        // contra el que haya puesto ahora
+        let requested = filter
+
         do {
-            let page = try await fetchCharacters.execute(page: 1)
+            let page = try await fetchCharacters.execute(page: 1, filter: requested)
+            guard !Task.isCancelled, requested == filter else { return }
+
             lastPage = page
             lastPageArrivedAt = .now
             loadedIDs = Set(page.items.map(\.id))
@@ -113,18 +220,17 @@ final class CharacterListViewModel {
         } catch {
             // Cancelar no es fallar: si el usuario se ha ido de la pantalla no hay
             // nada que contarle.
-            guard error != .cancelled else { return }
+            guard error != .cancelled, requested == filter else { return }
 
             // Un refresh que falla no puede dejar sin lista al que ya la estaba
             // mirando. Se conserva lo que hay y no se enseña el error.
             //
-            // TODO: [Fase 04] Ese refresh fallido se queda hoy sin aviso: el usuario
-            // conserva la lista, que es lo importante, pero no se entera de que lo que
-            // ve puede estar viejo. No se hace ahora porque el sitio natural es un
-            // aviso efímero, y montarlo bien —cola, tiempo de vida, que VoiceOver lo
-            // anuncie— es una pieza en sí misma que además hace falta para los
-            // filtros. Entraría como un modificador sobre CharacterListView alimentado
-            // desde aquí.
+            // Ese refresh fallido se queda hoy sin aviso: el usuario conserva la lista,
+            // que es lo importante, pero no se entera de que lo que ve puede estar
+            // viejo. Se deja así a sabiendas porque el sitio natural es un aviso
+            // efímero, y montarlo bien —cola, tiempo de vida, que VoiceOver lo anuncie—
+            // es una pieza en sí misma. Entraría como un modificador sobre
+            // CharacterListView alimentado desde aquí. Ver README, "Límites conocidos".
             guard state.value == nil else { return }
             state = .failed(error)
         }
@@ -170,6 +276,8 @@ final class CharacterListViewModel {
             pagingTask = nil
         }
 
+        let requested = filter
+
         // El freno va aquí dentro y no en la guarda de arriba a propósito: si se
         // rechazara la petición en vez de retrasarla, no habría quien la volviera a
         // pedir. El .onAppear de una celda se dispara una sola vez, así que rechazar es
@@ -180,8 +288,8 @@ final class CharacterListViewModel {
         guard !Task.isCancelled else { return }
 
         do {
-            let result = try await fetchCharacters.execute(page: page)
-            guard !Task.isCancelled else { return }
+            let result = try await fetchCharacters.execute(page: page, filter: requested)
+            guard !Task.isCancelled, requested == filter else { return }
             lastPageArrivedAt = .now
 
             // La API pagina sobre una lista estable, así que en principio no repite.
@@ -193,7 +301,7 @@ final class CharacterListViewModel {
             lastPage = result
             apply((state.value ?? []) + fresh)
         } catch {
-            guard error != .cancelled else { return }
+            guard error != .cancelled, requested == filter else { return }
             nextPageError = error
         }
     }

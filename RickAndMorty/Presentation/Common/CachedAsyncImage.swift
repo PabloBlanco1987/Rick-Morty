@@ -125,13 +125,13 @@ struct CachedAsyncImage<Placeholder: View>: View {
         // un icono de error cada dos es más ruido que información, y el personaje
         // —que es el contenido— sigue ahí con su nombre y su estado.
         //
-        // TODO: [Fase 04] A partir de aquí ese hueco no se rellena hasta que el
-        // usuario lo saque de pantalla y lo vuelva a meter. Se deja así porque la
-        // alternativa buena —que reintentar la lista reintente también las imágenes
-        // que fallaron— necesita una señal de reintento que baje desde el view model,
-        // y esa señal es la misma que hace falta para los filtros. Entraría como un
-        // valor de entorno que forme parte de la identidad de esta tarea, de modo que
-        // subirlo la vuelva a disparar en todas las celdas a la vez.
+        // A partir de aquí ese hueco no se rellena hasta que el usuario lo saque de
+        // pantalla y lo vuelva a meter. Se deja así a sabiendas: la alternativa buena
+        // —que reintentar la lista reintente también las imágenes que fallaron— necesita
+        // una señal de reintento que baje desde el view model, y entraría como un valor
+        // de entorno que formara parte de la identidad de esta tarea, de modo que
+        // subirlo la volviera a disparar en todas las celdas a la vez. Ver README,
+        // "Límites conocidos".
         //
         // No se toca `image`: si la celda ya tenía una imagen y la recarga ha fallado,
         // enseñar la que hay es mejor que vaciar el hueco.

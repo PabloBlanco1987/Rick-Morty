@@ -11,7 +11,7 @@ struct FetchCharactersUseCase: Sendable {
         self.repository = repository
     }
 
-    func execute(page: Int = 1, filter: CharacterFilter = .none) async throws(AppError) -> Page<Character> {
+    func execute(page: Int = 1, filter: CharacterFilter = .empty) async throws(AppError) -> Page<Character> {
         try await repository.characters(page: page, filter: filter)
     }
 }

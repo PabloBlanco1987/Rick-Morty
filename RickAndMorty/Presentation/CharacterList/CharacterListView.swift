@@ -6,13 +6,40 @@ import SwiftUI
 // aparece un estado nuevo el compilador señala este fichero en vez de dejar una
 // pantalla en blanco en producción.
 struct CharacterListView: View {
-    let viewModel: CharacterListViewModel
+    @Bindable var viewModel: CharacterListViewModel
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    @State private var isShowingFilters = false
 
     var body: some View {
         content
             .navigationTitle("Characters")
+            // La búsqueda es del servidor, no un filtrado de lo que ya está cargado:
+            // buscar entre las veinte celdas que ha traído la primera página sería
+            // buscar en el 2% de los personajes y decirle al usuario que no hay más.
+            .searchable(text: $viewModel.searchText, prompt: "Search characters")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isShowingFilters = true
+                    } label: {
+                        // El icono relleno cuando hay filtros puestos: al volver a la
+                        // pantalla es lo que explica por qué se están viendo doce
+                        // personajes en vez de ochocientos
+                        Label(
+                            "Filters",
+                            systemImage: viewModel.hasActiveFilters
+                                ? "line.3.horizontal.decrease.circle.fill"
+                                : "line.3.horizontal.decrease.circle"
+                        )
+                    }
+                    .accessibilityLabel(viewModel.hasActiveFilters ? "Filters, active" : "Filters")
+                }
+            }
+            .sheet(isPresented: $isShowingFilters) {
+                CharacterFiltersView(viewModel: viewModel)
+            }
             .task { await viewModel.onAppear() }
     }
 
@@ -27,11 +54,7 @@ struct CharacterListView: View {
         case .loaded(let characters):
             grid(characters)
         case .empty:
-            ContentUnavailableView(
-                "No characters",
-                systemImage: "person.slash",
-                description: Text("There's nothing to show here yet.")
-            )
+            emptyView
         case .failed(let error):
             errorView(error)
         }
@@ -43,12 +66,19 @@ struct CharacterListView: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(characters) { character in
-                    CharacterCard(character: character)
-                        .equatable()
-                        // El prefetch se dispara al aparecer, no al llegar al fondo:
-                        // cuando el usuario ve la última fila, la página siguiente ya
-                        // tiene que estar de camino.
-                        .onAppear { viewModel.loadNextPageIfNeeded(after: character) }
+                    // La navegación va por valor: la celda dice a qué personaje lleva y
+                    // es RootView, que es quien conoce el grafo de dependencias, la que
+                    // decide qué se construye con él. Así el listado no tiene que
+                    // arrastrar el caso de uso del detalle sin usarlo para nada.
+                    NavigationLink(value: character) {
+                        CharacterCard(character: character)
+                            .equatable()
+                    }
+                    .buttonStyle(.plain)
+                    // El prefetch se dispara al aparecer, no al llegar al fondo:
+                    // cuando el usuario ve la última fila, la página siguiente ya
+                    // tiene que estar de camino.
+                    .onAppear { viewModel.loadNextPageIfNeeded(after: character) }
                 }
             }
 
@@ -94,6 +124,29 @@ struct CharacterListView: View {
     }
 
     // MARK: - Estados
+
+    // Vacío por una búsqueda y vacío de verdad no son el mismo estado para el usuario:
+    // en el primero hay algo que hacer —quitar los filtros— y en el segundo no hay nada
+    // que decir más que que no hay nada.
+    @ViewBuilder
+    private var emptyView: some View {
+        if viewModel.hasActiveFilters {
+            ContentUnavailableView {
+                Label("No matches", systemImage: "magnifyingglass")
+            } description: {
+                Text("No characters match what you're looking for.")
+            } actions: {
+                Button("Clear filters") { viewModel.clearFilters() }
+                    .buttonStyle(.borderedProminent)
+            }
+        } else {
+            ContentUnavailableView(
+                "No characters",
+                systemImage: "person.slash",
+                description: Text("There's nothing to show here yet.")
+            )
+        }
+    }
 
     private var skeleton: some View {
         ScrollView {

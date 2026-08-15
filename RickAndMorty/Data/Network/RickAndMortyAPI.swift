@@ -17,7 +17,7 @@ enum RickAndMortyAPI {
         return components
     }()
 
-    static func characters(page: Int, filter: CharacterFilter = .none) -> Endpoint {
+    static func characters(page: Int, filter: CharacterFilter = .empty) -> Endpoint {
         var items = [URLQueryItem(name: "page", value: String(page))]
 
         if !filter.trimmedName.isEmpty {
