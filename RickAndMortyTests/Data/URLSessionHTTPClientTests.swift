@@ -46,11 +46,24 @@ struct URLSessionHTTPClientTests {
         }
     }
 
-    @Test("Carries the status code through for other failures", arguments: [500, 502, 400, 429])
+    @Test("Carries the status code through for other failures", arguments: [500, 502, 400])
     func mapsServerErrors(statusCode: Int) async {
         StubURLProtocol.install(.status(statusCode))
 
         await #expect(throws: AppError.server(statusCode: statusCode)) {
+            _ = try await sut.send(RickAndMortyAPI.character(id: 1), as: CharacterDTO.self)
+        }
+    }
+
+    @Test("A 429 is rate limiting, not a server error")
+    func mapsRateLimiting() async {
+        // La API va detrás de Cloudflare y contesta esto en cuanto le pides varias
+        // páginas seguidas, que es lo que pasa al hacer scroll rápido. Meterlo en
+        // .server lo dejaba fuera de los reintentos y sacaba una pantalla de error por
+        // algo que se arregla solo esperando.
+        StubURLProtocol.install(.status(429, json: #"{ "title": "Error 1015: You are being rate limited" }"#))
+
+        await #expect(throws: AppError.rateLimited) {
             _ = try await sut.send(RickAndMortyAPI.character(id: 1), as: CharacterDTO.self)
         }
     }

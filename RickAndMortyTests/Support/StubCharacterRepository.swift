@@ -4,7 +4,8 @@ import Foundation
 // CharacterRepository con resultados preparados, para probar los casos de uso sin
 // nada que se parezca a una red
 actor StubCharacterRepository: CharacterRepository {
-    private let charactersResult: Result<Page<Character>, AppError>
+    private var charactersByPage: [Int: Result<Page<Character>, AppError>]
+    private let charactersFallback: Result<Page<Character>, AppError>
     private let characterResult: Result<Character, AppError>
     private let episodesResult: Result<[Episode], AppError>
 
@@ -18,14 +19,36 @@ actor StubCharacterRepository: CharacterRepository {
         character: Result<Character, AppError> = .success(.stub()),
         episodes: Result<[Episode], AppError> = .success([])
     ) {
-        self.charactersResult = characters
+        self.charactersByPage = [:]
+        self.charactersFallback = characters
         self.characterResult = character
         self.episodesResult = episodes
     }
 
+    // Una respuesta distinta por página, que es lo que hace falta para probar la
+    // paginación: acumular la dos sobre la uno, o que la siete falle sin que se caigan
+    // las seis anteriores. Lo que no esté en el diccionario sale como página vacía.
+    init(
+        charactersByPage: [Int: Result<Page<Character>, AppError>],
+        character: Result<Character, AppError> = .success(.stub()),
+        episodes: Result<[Episode], AppError> = .success([])
+    ) {
+        self.charactersByPage = charactersByPage
+        self.charactersFallback = .success(.empty())
+        self.characterResult = character
+        self.episodesResult = episodes
+    }
+
+    // Cambia lo que se va a contestar de aquí en adelante, para probar lo que pasa
+    // cuando algo que iba bien empieza a fallar: un refresh que se cae después de
+    // haber cargado la lista, por ejemplo
+    func setCharacters(_ result: Result<Page<Character>, AppError>, forPage page: Int) {
+        charactersByPage[page] = result
+    }
+
     func characters(page: Int, filter: CharacterFilter) async throws(AppError) -> Page<Character> {
         requestedPages.append(page)
-        return try charactersResult.get()
+        return try (charactersByPage[page] ?? charactersFallback).get()
     }
 
     func character(id: Int) async throws(AppError) -> Character {
@@ -57,6 +80,19 @@ extension Character {
             location: "Citadel of Ricks",
             imageURL: URL(string: "https://rickandmortyapi.com/api/character/avatar/1.jpeg"),
             episodeIDs: episodeIDs
+        )
+    }
+}
+
+extension Page where Item == Character {
+    // Una página con personajes de ids correlativos, para no escribir veinte stubs a
+    // mano cada vez que se prueba el scroll
+    static func stub(page: Int, totalPages: Int, ids: ClosedRange<Int>) -> Page<Character> {
+        Page(
+            items: ids.map { Character.stub(id: $0, name: "Character \($0)") },
+            currentPage: page,
+            totalPages: totalPages,
+            totalCount: totalPages * ids.count
         )
     }
 }

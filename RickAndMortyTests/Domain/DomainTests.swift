@@ -52,12 +52,12 @@ struct CharacterFilterTests {
 
 @Suite("App error")
 struct AppErrorTests {
-    @Test("Only transient server-side failures are retried automatically", arguments: [
+    @Test("Only what can fix itself by waiting is retried automatically", arguments: [
         (AppError.timeout, true),
+        (AppError.rateLimited, true),
         (AppError.server(statusCode: 500), true),
         (AppError.server(statusCode: 503), true),
         (AppError.server(statusCode: 400), false),
-        (AppError.server(statusCode: 429), false),
         (AppError.offline, false),
         (AppError.notFound, false),
         (AppError.decoding, false),
@@ -66,6 +66,14 @@ struct AppErrorTests {
     ])
     func retryability(error: AppError, expected: Bool) {
         #expect(error.isRetryable == expected)
+    }
+
+    @Test("Being told to slow down earns more patience than a server stumble")
+    func rateLimitingWaitsLonger() {
+        // Reintentar un "vas demasiado rápido" a los 300 ms es alargarse el castigo
+        #expect(AppError.rateLimited.retryPatience == .backOff)
+        #expect(AppError.server(statusCode: 500).retryPatience == .brief)
+        #expect(AppError.timeout.retryPatience == .brief)
     }
 }
 

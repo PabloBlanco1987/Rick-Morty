@@ -2,13 +2,6 @@ import Foundation
 import Testing
 @testable import RickAndMorty
 
-// Apunta la secuencia de esperas en vez de dormir de verdad, así la suite entera
-// tarda milisegundos y no segundos
-private actor SleepRecorder {
-    private(set) var durations: [Duration] = []
-    func record(_ duration: Duration) { durations.append(duration) }
-}
-
 @Suite("Retrying HTTP client")
 struct RetryingHTTPClientTests {
     private func makeSUT(
@@ -78,6 +71,21 @@ struct RetryingHTTPClientTests {
 
         // Tres intentos son dos esperas: una antes del segundo y otra antes del tercero
         await #expect(recorder.durations == [.milliseconds(300), .milliseconds(600)])
+    }
+
+    @Test("Rate limiting is retried, and waited out for longer than a server stumble")
+    func backsOffFurtherWhenRateLimited() async {
+        // Es lo que separa un scroll rápido que se recupera solo de uno que acaba en
+        // una pantalla de error: la API contesta 429 en cuanto le pides varias páginas
+        // seguidas, y eso se arregla esperando, no insistiendo a los 300 ms.
+        let (sut, stub, recorder) = makeSUT(outcomes: [.failure(.rateLimited)])
+
+        await #expect(throws: AppError.rateLimited) {
+            _ = try await sut.send(anyEndpoint, as: CharacterDTO.self)
+        }
+
+        await #expect(stub.callCount == 3)
+        await #expect(recorder.durations == [.seconds(2), .seconds(4)])
     }
 
     @Test("A policy of one attempt disables retrying entirely")

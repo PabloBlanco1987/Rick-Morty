@@ -26,7 +26,7 @@ struct URLSessionHTTPClient: HTTPClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError {
-            throw Self.appError(for: error)
+            throw AppError(error)
         } catch is CancellationError {
             throw .cancelled
         } catch {
@@ -35,14 +35,7 @@ struct URLSessionHTTPClient: HTTPClient {
 
         guard let http = response as? HTTPURLResponse else { throw .unknown }
 
-        switch http.statusCode {
-        case 200..<300:
-            break
-        case 404:
-            throw .notFound
-        default:
-            throw .server(statusCode: http.statusCode)
-        }
+        if let error = AppError(statusCode: http.statusCode) { throw error }
 
         do {
             // JSONDecoder no es Sendable, así que lo creo en cada llamada en vez de
@@ -51,20 +44,6 @@ struct URLSessionHTTPClient: HTTPClient {
             return try JSONDecoder.rickAndMorty.decode(Response.self, from: data)
         } catch {
             throw .decoding
-        }
-    }
-
-    private static func appError(for error: URLError) -> AppError {
-        switch error.code {
-        case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed,
-             .internationalRoamingOff, .cannotConnectToHost, .cannotFindHost:
-            .offline
-        case .timedOut:
-            .timeout
-        case .cancelled:
-            .cancelled
-        default:
-            .unknown
         }
     }
 }
