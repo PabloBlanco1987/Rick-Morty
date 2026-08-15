@@ -1,9 +1,12 @@
 import Foundation
 
-// Raíz de composición: el único sitio de la app donde se ven los tipos concretos.
-// Todo lo demás depende de protocolos, que es lo que hace el grafo intercambiable.
-// Un test de UI arranca la misma app con un repositorio de mentira y nadie por
-// debajo nota la diferencia.
+// Raíz de composición: el único sitio donde se nombran los tipos concretos del grafo de
+// datos. Todo lo que hay debajo depende de protocolos, que es lo que lo hace
+// intercambiable. Un test de UI arranca la misma app con un repositorio de mentira y
+// nadie por debajo nota la diferencia.
+//
+// La caché de imágenes es la excepción, y a propósito: entra por el entorno de SwiftUI
+// (ver CachedAsyncImage) porque qué tamaño necesita una imagen lo decide la vista.
 struct AppDependencies: Sendable {
     let fetchCharacters: FetchCharactersUseCase
     let fetchCharacterDetail: FetchCharacterDetailUseCase

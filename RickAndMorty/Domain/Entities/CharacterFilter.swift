@@ -29,4 +29,18 @@ struct CharacterFilter: Hashable, Sendable {
     var isEmpty: Bool {
         trimmedName.isEmpty && status == nil && gender == nil && trimmedSpecies.isEmpty
     }
+
+    // El mismo filtro con los textos ya recortados.
+    //
+    // Existe porque hay dos sitios que deciden sobre lo mismo y tienen que decidir
+    // igual: quién dispara una recarga y quién descarta una respuesta que ya no vale.
+    // El primero compara sobre el recortado —añadir un espacio no es buscar otra cosa—,
+    // así que si el segundo comparase los campos crudos vería un criterio distinto donde
+    // no lo hay, tiraría una respuesta buena y dejaría la pantalla cargando para siempre.
+    var normalized: CharacterFilter {
+        var copy = self
+        copy.name = trimmedName
+        copy.species = trimmedSpecies
+        return copy
+    }
 }

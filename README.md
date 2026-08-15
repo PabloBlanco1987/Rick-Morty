@@ -83,10 +83,15 @@ El protocolo `CharacterRepository` vive en **Domain**, junto a quien lo usa, y l
 implementa **Data**. Esa inversión es lo que permite que Domain compile sin conocer la
 red y que cambiar la fuente de datos no toque nada por encima de un fichero.
 
-`AppDependencies` es la única raíz de composición: el único sitio de toda la app donde
-se nombra un tipo concreto. De ahí para abajo todo son protocolos, que es justo lo que
-hace que los tests de interfaz puedan arrancar la app entera con datos en memoria sin
-que ninguna capa se entere.
+`AppDependencies` es la única raíz de composición: el único sitio donde se nombran los
+tipos concretos del grafo de datos. De ahí para abajo todo son protocolos, que es justo
+lo que hace que los tests de interfaz puedan arrancar la app entera con datos en memoria
+sin que ninguna capa se entere.
+
+La única pieza que no entra por ahí es la caché de imágenes, que viaja por el entorno de
+SwiftUI (`@Entry var imageCache`): qué tamaño necesita una imagen es una decisión de la
+vista, no del dominio, y meterla en la raíz obligaría a arrastrarla por el init de cada
+pantalla intermedia para acabar en el mismo sitio.
 
 ### Flujo de una petición
 
@@ -95,7 +100,7 @@ CharacterListView → CharacterListViewModel → FetchCharactersUseCase
    → CharacterRepository (protocolo)
    → DefaultCharacterRepository → CharacterRemoteDataSource
    → RetryingHTTPClient → URLSessionHTTPClient → API
-   ← PageDTO<CharacterDTO> ← CharacterMapper ← Page<Character>
+   ← Page<Character> ← CharacterMapper ← PageDTO<CharacterDTO>
 ```
 
 ---
@@ -141,9 +146,13 @@ Es la parte con más criterio del proyecto, porque una rejilla de 826 avatares e
 un scroll se rompe. Tres gastos, en orden de impacto:
 
 1. **Decodificar.** Un avatar de 300×300 px pesa unos 25 KB comprimido, pero su bitmap
-   ocupa 360 KB. Para pintarlo en una celda de 110 pt eso es guardar cuatro veces los
-   píxeles que se ven. Aquí se reduce **durante** la decodificación, así que el bitmap
-   grande no llega a existir.
+   ocupa 360 KB, y lo que pesa en memoria es el bitmap. Aquí se decodifica **a la medida
+   de la celda** y en el momento, no al ir a pintar: el bitmap nunca es mayor que lo que
+   se ve, así que el techo de memoria lo pone el layout y no lo que decida mandar el
+   servidor. Con los 300×300 de hoy y celdas que no bajan de 150 pt el recorte no llega a
+   aplicarse —ImageIO no amplía—; lo que sí se nota en cada celda es forzar la
+   decodificación ahí, fuera del hilo principal, en vez de dejarla para el momento de
+   pintar, que es durante el scroll.
 2. **Repetir trabajo.** Volver hacia atrás en el scroll no puede costar otra descarga:
    memoria primero, disco después, la red como último recurso. Se guardan los bytes
    originales, no el bitmap reducido, para que otro tamaño cueste una decodificación y
@@ -177,7 +186,10 @@ Dos reglas que sigue toda la suite:
   (`SleepRecorder`), así que lo que se comprueba es la *decisión* de esperar y cuánto,
   no el reloj. Donde hace falta congelar una operación en vuelo se usa un rendezvous
   (`AsyncGate`), no un «duerme 50 ms y confía». Es la diferencia entre una suite fiable y
-  una que falla una vez de cada treinta en integración continua.
+  una que falla una vez de cada treinta en integración continua. El único reloj de verdad
+  de toda la suite está en `doesNotBrakeWhenTheUserTakesTheirTime`, donde lo que se prueba
+  es precisamente que pase el tiempo: ahí dormir de más no puede romper nada, y dormir de
+  menos no puede pasar.
 - **Los tests de interfaz no tocan la red.** Se lanzan con el argumento
   `-stubbed-data` y la app monta el mismo grafo sobre un repositorio en memoria. Un test
   de interfaz contra la API de verdad se pone rojo el día que no hay cobertura y el día

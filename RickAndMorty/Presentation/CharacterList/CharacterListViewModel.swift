@@ -27,7 +27,7 @@ final class CharacterListViewModel {
     private(set) var filter: CharacterFilter = .empty
 
     // internal y no private a propósito: los tests esperan a estas tareas para saber que
-    // la carga ha terminado. Es lo que permite que la suite no tenga ni un sleep.
+    // la carga ha terminado, en vez de dormir un rato y confiar.
     @ObservationIgnored private(set) var pagingTask: Task<Void, Never>?
     @ObservationIgnored private(set) var searchTask: Task<Void, Never>?
 
@@ -205,12 +205,18 @@ final class CharacterListViewModel {
 
         // El filtro se lee aquí y se lleva hasta el final: si cambia mientras la
         // petición está en vuelo, lo que llegue se compara contra el que se pidió y no
-        // contra el que haya puesto ahora
+        // contra el que haya puesto ahora.
+        //
+        // La comparación va por `normalized` porque tiene que usar el mismo criterio con
+        // el que se decide recargar: escribir un espacio al final no dispara una petición
+        // nueva, así que tampoco puede invalidar la que ya viene de camino. Comparando
+        // los campos crudos, ese espacio tiraba una respuesta buena y dejaba la pantalla
+        // en .loading sin nadie que la sacara de ahí.
         let requested = filter
 
         do {
             let page = try await fetchCharacters.execute(page: 1, filter: requested)
-            guard !Task.isCancelled, requested == filter else { return }
+            guard !Task.isCancelled, requested.normalized == filter.normalized else { return }
 
             lastPage = page
             lastPageArrivedAt = .now
@@ -220,7 +226,7 @@ final class CharacterListViewModel {
         } catch {
             // Cancelar no es fallar: si el usuario se ha ido de la pantalla no hay
             // nada que contarle.
-            guard error != .cancelled, requested == filter else { return }
+            guard error != .cancelled, requested.normalized == filter.normalized else { return }
 
             // Un refresh que falla no puede dejar sin lista al que ya la estaba
             // mirando. Se conserva lo que hay y no se enseña el error.
@@ -289,7 +295,15 @@ final class CharacterListViewModel {
 
         do {
             let result = try await fetchCharacters.execute(page: page, filter: requested)
-            guard !Task.isCancelled, requested == filter else { return }
+            // Además del filtro, se comprueba que esta siga siendo la página que toca.
+            // Un refresh no cancela la paginación en vuelo —conserva la lista, así que
+            // sus celdas siguen en pantalla y pueden disparar la siguiente página—, y sin
+            // esta guarda la página vieja aterrizaba sobre la lista ya sustituida: página
+            // 1 seguida de la 4, con la 2 y la 3 saltadas para siempre.
+            guard !Task.isCancelled,
+                  requested.normalized == filter.normalized,
+                  lastPage?.nextPage == page
+            else { return }
             lastPageArrivedAt = .now
 
             // La API pagina sobre una lista estable, así que en principio no repite.
@@ -301,7 +315,10 @@ final class CharacterListViewModel {
             lastPage = result
             apply((state.value ?? []) + fresh)
         } catch {
-            guard error != .cancelled, requested == filter else { return }
+            guard error != .cancelled,
+                  requested.normalized == filter.normalized,
+                  lastPage?.nextPage == page
+            else { return }
             nextPageError = error
         }
     }

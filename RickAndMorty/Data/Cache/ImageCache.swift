@@ -2,18 +2,19 @@ import CoreGraphics
 import CryptoKit
 import Foundation
 import ImageIO
-import UniformTypeIdentifiers
 
 // Caché de imágenes de dos niveles con deduplicación de descargas.
 //
 // Los tres gastos que se cargan un scroll, en orden de impacto:
 //
 // 1. Decodificar. Un avatar de la API son 300x300 px comprimidos en unos 25 KB, pero
-//    el bitmap que sale de decodificarlo ocupa 360 KB. Pintarlo en una celda de
-//    110 pt significa guardar en memoria cuatro veces los píxeles que se ven, y
-//    multiplicado por las celdas que caben en pantalla eso es lo que acaba en un
-//    aviso de memoria. Aquí se reduce durante la propia decodificación, así que el
-//    bitmap grande no llega a existir.
+//    el bitmap que sale de decodificarlo ocupa 360 KB, y multiplicado por las celdas
+//    que caben en pantalla es lo que acaba en un aviso de memoria. Aquí se decodifica
+//    a la medida de la celda y en el momento, no al ir a pintar: el bitmap nunca es
+//    mayor que lo que se ve, así que el techo lo pone el layout y no lo que decida
+//    mandar el servidor. Con los 300x300 de hoy y celdas de 150 pt para arriba el
+//    recorte no llega a aplicarse —ImageIO no amplía—; lo que sí se nota en cada
+//    celda es forzar la decodificación aquí, fuera del hilo principal.
 // 2. Repetir trabajo. Volver hacia atrás en el scroll no puede costar otra descarga
 //    ni otra decodificación: memoria primero, disco después y la red como último
 //    recurso.
@@ -67,9 +68,9 @@ actor ImageCache {
 
     init(
         directory: URL = ImageCache.defaultDirectory,
-        // 50 MB de bitmaps ya reducidos. A 110 pt en una pantalla 3x son unos 435 KB
-        // por imagen, o sea ~115 avatares: más de lo que cabe en cuatro pantallas de
-        // scroll, que es la distancia a la que un usuario vuelve hacia atrás.
+        // 50 MB de bitmaps. Un avatar de los de hoy decodificado son 360 KB, así que
+        // caben unos 145: más de lo que ocupan cuatro pantallas de scroll, que es la
+        // distancia a la que un usuario vuelve hacia atrás.
         memoryLimit: Int = 50 * 1024 * 1024,
         // Cuatro a la vez. Más no llega antes —el cuello está en las conexiones y en el
         // ancho de banda, no en cuántas peticiones hayamos soltado— y sí deja al

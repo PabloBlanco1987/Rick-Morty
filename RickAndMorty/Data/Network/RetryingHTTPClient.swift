@@ -19,8 +19,8 @@ struct RetryPolicy: Hashable, Sendable {
     )
     static let none = RetryPolicy(maxAttempts: 1, baseDelay: .zero, rateLimitedDelay: .zero)
 
-    // Backoff exponencial sobre la base que toque: 300 ms, 600 ms, 1,2 s… o 1 s, 2 s,
-    // 4 s si lo que hubo fue un "más despacio"
+    // Backoff exponencial sobre la base que toque: 300 ms, 600 ms, 1,2 s… o 2 s, 4 s,
+    // 8 s si lo que hubo fue un "más despacio"
     func delay(beforeAttempt attempt: Int, after error: AppError) -> Duration {
         guard attempt > 1 else { return .zero }
         let base = switch error.retryPatience {
