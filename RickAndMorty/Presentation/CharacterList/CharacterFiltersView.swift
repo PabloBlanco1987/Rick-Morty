@@ -19,12 +19,12 @@ struct CharacterFiltersView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Status") {
-                    Picker("Status", selection: $viewModel.statusFilter) {
+                Section(String(localized: "characterFilters.statusSection.title")) {
+                    Picker(String(localized: "characterFilters.statusPicker.title"), selection: $viewModel.statusFilter) {
                         // "Any" es un caso más de la selección y no un botón de quitar
                         // aparte: quitar un filtro es elegir no filtrar por él, y así se
                         // ve en el mismo sitio en el que se puso
-                        Text("Any").tag(Character.Status?.none)
+                        Text(String(localized: "characterFilters.status.any")).tag(Character.Status?.none)
                         ForEach(Character.Status.allCases, id: \.self) { status in
                             Text(status.displayName).tag(Character.Status?.some(status))
                         }
@@ -35,9 +35,9 @@ struct CharacterFiltersView: View {
                     .accessibilityIdentifier("filter-status")
                 }
 
-                Section("Gender") {
-                    Picker("Gender", selection: $viewModel.genderFilter) {
-                        Text("Any").tag(Character.Gender?.none)
+                Section(String(localized: "characterFilters.genderSection.title")) {
+                    Picker(String(localized: "characterFilters.genderPicker.title"), selection: $viewModel.genderFilter) {
+                        Text(String(localized: "characterFilters.gender.any")).tag(Character.Gender?.none)
                         ForEach(Character.Gender.allCases, id: \.self) { gender in
                             Text(gender.displayName).tag(Character.Gender?.some(gender))
                         }
@@ -46,7 +46,7 @@ struct CharacterFiltersView: View {
                 }
 
                 Section {
-                    TextField("Human, Alien, Robot…", text: $viewModel.speciesFilter)
+                    TextField(String(localized: "characterFilters.species"), text: $viewModel.speciesFilter)
                         // La API compara la especie por texto, así que ni el corrector ni
                         // la mayúscula automática ayudan aquí: solo cambian lo que el
                         // usuario ha escrito a propósito

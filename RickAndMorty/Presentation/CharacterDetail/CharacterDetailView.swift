@@ -11,7 +11,10 @@ struct CharacterDetailView: View {
     @State private var viewModel: CharacterDetailViewModel
 
     @MainActor
-    init(character: Character, fetchCharacterDetail: FetchCharacterDetailUseCase) {
+    init(
+        character: Character,
+        fetchCharacterDetail: FetchCharacterDetailUseCase
+    ) {
         _viewModel = State(
             initialValue: CharacterDetailViewModel(
                 characterID: character.id,
@@ -25,20 +28,19 @@ struct CharacterDetailView: View {
         content
             .navigationTitle(viewModel.character?.name ?? "")
             .navigationBarTitleDisplayMode(.inline)
-            .task { await viewModel.onAppear() }
+            .task {
+                await viewModel.onAppear()
+            }
     }
 
     @ViewBuilder
     private var content: some View {
-        // Sin nada que enseñar, el fallo se lleva la pantalla entera. Con la cabecera ya
-        // puesta, en cambio, lo que falla es solo la lista de episodios y se cuenta ahí
-        // abajo: tirar un personaje que ya está en pantalla por un episodio que no ha
-        // llegado sería cambiar información por un mensaje de error.
-        if case .failed(let error) = viewModel.state, !viewModel.hasContentOnScreen {
+        if case .failed(let error) = viewModel.state,
+           !viewModel.hasContentOnScreen {
             errorView(error)
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 32) {
                     header
                     facts
                     episodes
@@ -50,7 +52,7 @@ struct CharacterDetailView: View {
         }
     }
 
-    // MARK: - Cabecera
+    // MARK: - Header
 
     @ViewBuilder
     private var header: some View {
@@ -60,8 +62,6 @@ struct CharacterDetailView: View {
                     .aspectRatio(1, contentMode: .fit)
                     .frame(maxWidth: .infinity)
                     .clipShape(.rect(cornerRadius: 20))
-                    // Decorativa: el nombre y la especie ya están escritos justo debajo,
-                    // así que para VoiceOver la imagen no añade nada y sí una parada más
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -75,50 +75,104 @@ struct CharacterDetailView: View {
         }
     }
 
-    // MARK: - Datos
+    // MARK: - Information
 
     @ViewBuilder
     private var facts: some View {
         if let character = viewModel.character {
-            VStack(alignment: .leading, spacing: 0) {
-                DetailRow(label: "Species", value: character.species)
-                // El tipo solo aparece cuando lo hay: una fila con un guion es una fila
-                // que se lee, se escucha y ocupa sitio para no decir nada
-                if let type = character.type {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Information")
+                    .font(.title2.bold())
+
+                VStack(spacing: 0) {
+                    DetailRow(
+                        label: "Species",
+                        value: character.species,
+                        systemImage: "sparkles"
+                    )
+
+                    if let type = character.type {
+                        Divider()
+                            .padding(.leading, 56)
+
+                        DetailRow(
+                            label: "Type",
+                            value: type,
+                            systemImage: "tag"
+                        )
+                    }
+
                     Divider()
-                    DetailRow(label: "Type", value: type)
+                        .padding(.leading, 56)
+
+                    DetailRow(
+                        label: "Gender",
+                        value: character.gender.displayName,
+                        systemImage: "person"
+                    )
+
+                    Divider()
+                        .padding(.leading, 56)
+
+                    DetailRow(
+                        label: "Origin",
+                        value: character.origin,
+                        systemImage: "globe"
+                    )
+
+                    Divider()
+                        .padding(.leading, 56)
+
+                    DetailRow(
+                        label: "Location",
+                        value: character.location,
+                        systemImage: "mappin.and.ellipse"
+                    )
                 }
-                Divider()
-                DetailRow(label: "Gender", value: character.gender.displayName)
-                Divider()
-                DetailRow(label: "Origin", value: character.origin)
-                Divider()
-                DetailRow(label: "Location", value: character.location)
+                .background(
+                    .background.secondary,
+                    in: .rect(cornerRadius: 18)
+                )
             }
-            .padding(.vertical, 4)
-            .background(.background.secondary, in: .rect(cornerRadius: 16))
         }
     }
 
-    // MARK: - Episodios
+    // MARK: - Episodes
 
     @ViewBuilder
     private var episodes: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Episodes")
-                .font(.title2.bold())
+            HStack(spacing: 10) {
+                Text("Episodes")
+                    .font(.title2.bold())
+
+                if !viewModel.episodes.isEmpty {
+                    Text("\(viewModel.episodes.count)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            .green.opacity(0.12),
+                            in: .capsule
+                        )
+                }
+            }
 
             switch viewModel.state {
             case .idle, .loading:
                 episodeSkeleton
+
             case .loaded, .empty:
                 if viewModel.episodes.isEmpty {
                     Text("This character doesn't appear in any episode.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .padding(.vertical, 8)
                 } else {
                     episodeList
                 }
+
             case .failed(let error):
                 episodesUnavailable(error)
             }
@@ -127,58 +181,91 @@ struct CharacterDetailView: View {
 
     private var episodeList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(viewModel.episodes.enumerated()), id: \.element.id) { index, episode in
-                if index > 0 { Divider() }
+            ForEach(
+                Array(viewModel.episodes.enumerated()),
+                id: \.element.id
+            ) { index, episode in
+
+                if index > 0 {
+                    Divider()
+                }
+
                 EpisodeRow(episode: episode)
             }
         }
-        .background(.background.secondary, in: .rect(cornerRadius: 16))
+        .background(
+            .background.secondary,
+            in: .rect(cornerRadius: 18)
+        )
     }
 
     private var episodeSkeleton: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(0..<4, id: \.self) { index in
-                if index > 0 { Divider() }
+                if index > 0 {
+                    Divider()
+                }
+
                 EpisodeRow(
-                    episode: Episode(id: index, name: "Episode title", code: "S01E01", airDate: nil)
+                    episode: Episode(
+                        id: index,
+                        name: "Episode title",
+                        code: "S01E01",
+                        airDate: nil
+                    )
                 )
             }
         }
-        .background(.background.secondary, in: .rect(cornerRadius: 16))
+        .background(
+            .background.secondary,
+            in: .rect(cornerRadius: 18)
+        )
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading episodes")
     }
 
-    // El fallo de esta sección se cuenta aquí dentro y con su propio botón: es la misma
-    // idea que el pie del listado, un trozo de la pantalla que se ha caído y no la
-    // pantalla entera.
     private func episodesUnavailable(_ error: AppError) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(error.title, systemImage: error.systemImage)
-                .font(.subheadline.weight(.semibold))
+            Label(
+                error.title,
+                systemImage: error.systemImage
+            )
+            .font(.subheadline.weight(.semibold))
+
             Text(error.message)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+
             Button("Try again") {
-                Task { await viewModel.retry() }
+                Task {
+                    await viewModel.retry()
+                }
             }
             .buttonStyle(.bordered)
             .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.background.secondary, in: .rect(cornerRadius: 16))
+        .background(
+            .background.secondary,
+            in: .rect(cornerRadius: 18)
+        )
     }
 
     private func errorView(_ error: AppError) -> some View {
         ContentUnavailableView {
-            Label(error.title, systemImage: error.systemImage)
+            Label(
+                error.title,
+                systemImage: error.systemImage
+            )
         } description: {
             Text(error.message)
         } actions: {
             Button("Try again") {
-                Task { await viewModel.retry() }
+                Task {
+                    await viewModel.retry()
+                }
             }
             .buttonStyle(.borderedProminent)
         }
@@ -192,25 +279,55 @@ struct CharacterDetailView: View {
 private struct DetailRow: View {
     let label: String
     let value: String
+    let systemImage: String
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline) {
-                labelText
-                Spacer(minLength: 16)
-                valueText
-                    .multilineTextAlignment(.trailing)
-            }
+            horizontalLayout
 
-            VStack(alignment: .leading, spacing: 4) {
-                labelText
-                valueText
-            }
+            verticalLayout
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var horizontalLayout: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            icon
+
+            labelText
+
+            Spacer(minLength: 16)
+
+            valueText
+                .multilineTextAlignment(.trailing)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        // Una parada de VoiceOver por fila, y leída como frase: "Species, Human"
-        .accessibilityElement(children: .combine)
+    }
+
+    private var verticalLayout: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                icon
+                labelText
+            }
+
+            valueText
+                .padding(.leading, 44)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private var icon: some View {
+        Image(systemName: systemImage)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.green)
+            .frame(width: 28, height: 28)
+            .background(
+                .green.opacity(0.1),
+                in: .rect(cornerRadius: 8)
+            )
     }
 
     private var labelText: some View {
@@ -230,14 +347,16 @@ private struct EpisodeRow: View {
     let episode: Episode
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            // Ancho fijo y monoespaciada para que los códigos queden en columna: en una
-            // lista de cincuenta episodios, alinearlos es la diferencia entre poder
-            // buscar con la vista y tener que leerlos todos
+        HStack(alignment: .center, spacing: 12) {
             Text(episode.code)
                 .font(.caption.monospaced().weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 52, alignment: .leading)
+                .foregroundStyle(.green)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    .green.opacity(0.1),
+                    in: .rect(cornerRadius: 10)
+                )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(episode.name)
@@ -259,11 +378,14 @@ private struct EpisodeRow: View {
         .accessibilityLabel(accessibilityLabel)
     }
 
-    // Se dice "Season 1, episode 1" y no "S01E01", que VoiceOver deletrearía
     private var accessibilityLabel: String {
-        [episode.name, episode.spokenCode, episode.formattedAirDate]
-            .compactMap(\.self)
-            .joined(separator: ". ")
+        [
+            episode.name,
+            episode.spokenCode,
+            episode.formattedAirDate
+        ]
+        .compactMap(\.self)
+        .joined(separator: ". ")
     }
 }
 

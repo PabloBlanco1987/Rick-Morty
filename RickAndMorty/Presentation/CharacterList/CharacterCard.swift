@@ -17,22 +17,21 @@ struct CharacterCard: View, Equatable {
                 // de que llegue la imagen es lo que evita que la fila entera dé un
                 // salto de altura cuando cada una aterriza.
                 .aspectRatio(1, contentMode: .fit)
+                .overlay(alignment: .topTrailing) {
+                    CharacterStatusBadge(status: character.status)
+                        .padding(12)
+                }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(character.name)
                     .font(.headline)
                     .lineLimit(2)
-                    // Que crezca hacia abajo en vez de encogerse: con Dynamic Type
-                    // grande, un nombre a media letra se lee peor que un nombre en
-                    // dos líneas.
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(character.species)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-
-                CharacterStatusBadge(status: character.status)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
@@ -42,17 +41,11 @@ struct CharacterCard: View, Equatable {
         .frame(maxHeight: .infinity, alignment: .top)
         .background(.background.secondary, in: .rect(cornerRadius: 16))
         .contentShape(.rect(cornerRadius: 16))
-        // Una parada de VoiceOver por personaje, no tres. En una lista de 826, tener
-        // que pasar por imagen, nombre y estado por separado la hace impracticable.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
-        // El identificador es para los tests de UI y no lo lee nadie en voz alta: es lo
-        // que les deja señalar una celda concreta sin depender del texto, que cambia con
-        // el idioma y con lo que conteste la API
         .accessibilityIdentifier("character-\(character.id)")
     }
 
-    // El orden es el que importa al escuchar: quién es, qué es y si sigue vivo.
     private var accessibilityLabel: String {
         "\(character.name). \(character.species). \(character.status.accessibilityDescription)"
     }
@@ -68,13 +61,17 @@ struct CharacterCardSkeleton: View {
             Rectangle()
                 .fill(.fill.tertiary)
                 .aspectRatio(1, contentMode: .fit)
+                .overlay(alignment: .topTrailing) {
+                    CharacterStatusBadge(status: .unknown)
+                        .padding(12)
+                }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Character name")
                     .font(.headline)
+
                 Text("Species")
                     .font(.subheadline)
-                CharacterStatusBadge(status: .unknown)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)

@@ -23,7 +23,14 @@ struct CharacterStatusBadge: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(status.tint.opacity(0.15), in: .capsule)
+        .background {
+            Capsule()
+                .fill(.background)
+                .overlay {
+                    Capsule()
+                        .fill(status.tint.opacity(0.15))
+                }
+        }
     }
 }
 
