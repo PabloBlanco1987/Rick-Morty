@@ -7,10 +7,16 @@ import Foundation
 struct URLSessionHTTPClient: HTTPClient {
     private let base: URLComponents
     private let session: URLSession
+    private let logger: NetworkLogger
 
-    init(base: URLComponents = RickAndMortyAPI.base, session: URLSession = .rickAndMorty) {
+    init(
+        base: URLComponents = RickAndMortyAPI.base,
+        session: URLSession = .rickAndMorty,
+        logger: NetworkLogger = .shared
+    ) {
         self.base = base
         self.session = session
+        self.logger = logger
     }
 
     func send<Response: Decodable & Sendable>(
@@ -21,19 +27,34 @@ struct URLSessionHTTPClient: HTTPClient {
             throw .unknown
         }
 
+        logger.logRequest(request)
+        let start = ContinuousClock.now
+
         let data: Data
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError {
+            logger.logFailure(error, for: request, duration: start.duration(to: .now))
             throw AppError(error)
-        } catch is CancellationError {
+        } catch let error where error is CancellationError {
+            logger.logFailure(error, for: request, duration: start.duration(to: .now))
             throw .cancelled
         } catch {
+            logger.logFailure(error, for: request, duration: start.duration(to: .now))
             throw .unknown
         }
 
-        guard let http = response as? HTTPURLResponse else { throw .unknown }
+        let elapsed = start.duration(to: .now)
+
+        guard let http = response as? HTTPURLResponse else {
+            logger.logFailure(AppError.unknown, for: request, duration: elapsed)
+            throw .unknown
+        }
+
+        // Se traza antes de mirar el código de estado, para que un 404 o un 429 salgan
+        // por consola tal cual llegaron, sin pasar por la traducción a AppError
+        logger.logResponse(http, for: request, duration: elapsed)
 
         if let error = AppError(statusCode: http.statusCode) { throw error }
 
@@ -43,6 +64,9 @@ struct URLSessionHTTPClient: HTTPClient {
             // decenas de milisegundos: no compensa un @unchecked Sendable.
             return try JSONDecoder.rickAndMorty.decode(Response.self, from: data)
         } catch {
+            // El DecodingError trae la ruta exacta de la clave que no cuadra, y al salir
+            // de aquí como .decoding se pierde. Es la única traza que lo cuenta.
+            logger.logFailure(error, for: request, duration: elapsed)
             throw .decoding
         }
     }

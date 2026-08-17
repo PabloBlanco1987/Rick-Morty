@@ -372,21 +372,44 @@ actor ImageCache {
 
     // Descarga directa, sin pasar por HTTPClient: ahí lo que llega es JSON que hay que
     // decodificar, y aquí lo que hace falta son los bytes tal cual. Lo que sí se
-    // comparte es la traducción del fallo, que vive en AppError+Network.
+    // comparte es la traducción del fallo, que vive en AppError+Network, y la traza,
+    // que es el mismo NetworkLogger que usa el cliente HTTP.
+    //
+    // Solo se traza lo que sale a la red de verdad. Lo que se resuelve en memoria o en
+    // disco no llega hasta aquí, y así el log dice qué se está pidiendo fuera y no
+    // cuántas celdas se han pintado.
     static func download(_ url: URL) async throws(AppError) -> Data {
+        // Petición explícita en vez de data(from:) —que monta esta misma por dentro—
+        // para poder trazarla
+        let request = URLRequest(url: url)
+        let logger = NetworkLogger.shared
+        logger.logRequest(request)
+        let start = ContinuousClock.now
+
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await imageSession.data(from: url)
+            (data, response) = try await imageSession.data(for: request)
         } catch let error as URLError {
+            logger.logFailure(error, for: request, duration: start.duration(to: .now))
             throw AppError(error)
-        } catch is CancellationError {
+        } catch let error where error is CancellationError {
+            logger.logFailure(error, for: request, duration: start.duration(to: .now))
             throw .cancelled
         } catch {
+            logger.logFailure(error, for: request, duration: start.duration(to: .now))
             throw .unknown
         }
 
-        guard let http = response as? HTTPURLResponse else { throw .unknown }
+        let elapsed = start.duration(to: .now)
+
+        guard let http = response as? HTTPURLResponse else {
+            logger.logFailure(AppError.unknown, for: request, duration: elapsed)
+            throw .unknown
+        }
+
+        logger.logResponse(http, for: request, duration: elapsed)
+
         if let error = AppError(statusCode: http.statusCode) { throw error }
         return data
     }
