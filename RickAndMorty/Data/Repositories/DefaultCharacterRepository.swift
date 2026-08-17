@@ -8,9 +8,13 @@ struct DefaultCharacterRepository: CharacterRepository {
         self.remote = remote
     }
 
-    func characters(page: Int, filter: CharacterFilter) async throws(AppError) -> Page<Character> {
+    func characters(
+        page: Int,
+        filter: CharacterFilter,
+        freshness: Freshness
+    ) async throws(AppError) -> Page<Character> {
         do {
-            let dto = try await remote.characters(page: page, filter: filter)
+            let dto = try await remote.characters(page: page, filter: filter, freshness: freshness)
             return CharacterMapper.map(dto, page: page)
         } catch {
             // Cuando un filtro no encuentra nada, la API contesta 404 con un cuerpo de

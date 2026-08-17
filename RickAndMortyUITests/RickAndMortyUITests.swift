@@ -104,10 +104,10 @@ final class RickAndMortyUITests: XCTestCase {
         searchField.tap()
         searchField.typeText("zzzzzzzz")
 
-        // Sin resultados no es un fallo: la pantalla que sale ofrece quitar los filtros,
-        // no reintentar
+        // Sin resultados no es un fallo: la pantalla que sale ofrece quitar lo que se
+        // buscó, no reintentar. Y dice "búsqueda", no "filtros": no se ha tocado ninguno
         XCTAssertTrue(app.staticTexts["No matches"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Clear filters"].exists)
+        XCTAssertTrue(app.buttons["Clear search"].exists)
     }
 
     @MainActor

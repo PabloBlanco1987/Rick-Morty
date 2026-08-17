@@ -127,6 +127,13 @@ actor ImageCache {
         if Task.isCancelled { throw .cancelled }
 
         guard let image = await Self.downsample(fetched.data, to: pixelSize) else {
+            // Unos bytes que no son una imagen no pueden quedarse en disco: la descarga
+            // los guarda antes de saber si decodifican, y si se quedaran, cada visita
+            // siguiente los leería de ahí, fallaría igual y no volvería a bajarlos nunca.
+            // Es lo que hace un portal cautivo —el wifi de un hotel que contesta 200 con
+            // su página de acceso— y sin esto envenena la caché hasta que el sistema la
+            // vacíe. Borrando, el siguiente intento vuelve a la red.
+            await Self.removeFile(at: fileURL(for: url))
             throw .decoding
         }
 
@@ -295,6 +302,12 @@ actor ImageCache {
         try? data.write(to: url, options: .atomic)
     }
 
+    @concurrent
+    private static func removeFile(at url: URL) async {
+        // Si no está, ya está hecho
+        try? FileManager.default.removeItem(at: url)
+    }
+
     // MARK: - Decodificación
 
     @concurrent
@@ -370,11 +383,11 @@ actor ImageCache {
     // cliente HTTP: la descarga no sabe que se la reintenta y el reintento no sabe de
     // dónde salen los bytes.
     //
-    // Aquí hace falta más que en el JSON, porque una imagen que falla no tiene quien
-    // la vuelva a pedir: la celda sigue en pantalla y su .task no se dispara sola otra
-    // vez, así que un 502 pasajero deja un hueco gris hasta que el usuario saque esa
-    // celda de la pantalla y la vuelva a meter. Como la descarga está deduplicada, el
-    // reintento vale además para todas las celdas que estuvieran esperándola.
+    // Este es el reintento corto: el tropiezo de una petición —un 502 pasajero, un
+    // timeout— se repite aquí en cientos de milisegundos, y como la descarga está
+    // deduplicada, se repite una vez para todas las celdas que estuvieran esperándola.
+    // El mal rato largo, de segundos, lo cubre CachedAsyncImage mientras la celda siga
+    // en pantalla; las dos capas se reparten el tiempo en vez de solaparse.
     static func retrying(
         _ loader: @escaping DataLoader,
         policy: RetryPolicy = .default
@@ -468,11 +481,13 @@ actor ImageCache {
         logger.logResponse(http, for: request, duration: elapsed)
 
         // El limitador se entera aquí y no en la traducción a AppError porque el
-        // Retry-After va en la respuesta cruda, y esta es la única que lo tiene delante
+        // Retry-After va en la respuesta cruda, y esta es la única que lo tiene delante.
+        // Y se le dice cuándo salió la petición: es lo que le deja distinguir un 429 de
+        // la ráfaga que ya frenó de uno nuevo.
         if http.statusCode == 429 {
-            await limiter.reportRateLimited(retryAfter: http.retryAfter)
+            await limiter.reportRateLimited(retryAfter: http.retryAfter, issuedAt: start)
         } else if (200..<300).contains(http.statusCode) {
-            await limiter.reportSuccess()
+            await limiter.reportSuccess(issuedAt: start)
         }
 
         if let error = AppError(statusCode: http.statusCode) { throw error }

@@ -57,7 +57,11 @@ actor StubCharacterRepository: CharacterRepository {
         episodesResult = result
     }
 
-    func characters(page: Int, filter: CharacterFilter) async throws(AppError) -> Page<Character> {
+    func characters(
+        page: Int,
+        filter: CharacterFilter,
+        freshness: Freshness
+    ) async throws(AppError) -> Page<Character> {
         requestedPages.append(page)
         requestedFilters.append(filter)
         return try (charactersByPage[page] ?? charactersFallback).get()

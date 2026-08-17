@@ -81,12 +81,12 @@ struct CharacterDetailView: View {
     private var facts: some View {
         if let character = viewModel.character {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Information")
+                Text(.characterDetailInformationTitle)
                     .font(.title2.bold())
 
                 VStack(spacing: 0) {
                     DetailRow(
-                        label: "Species",
+                        label: String(localized: .characterDetailSpeciesLabel),
                         value: character.species,
                         systemImage: "sparkles"
                     )
@@ -96,7 +96,7 @@ struct CharacterDetailView: View {
                             .padding(.leading, 56)
 
                         DetailRow(
-                            label: "Type",
+                            label: String(localized: .characterDetailTypeLabel),
                             value: type,
                             systemImage: "tag"
                         )
@@ -106,7 +106,7 @@ struct CharacterDetailView: View {
                         .padding(.leading, 56)
 
                     DetailRow(
-                        label: "Gender",
+                        label: String(localized: .characterDetailGenderLabel),
                         value: character.gender.displayName,
                         systemImage: "person"
                     )
@@ -115,7 +115,7 @@ struct CharacterDetailView: View {
                         .padding(.leading, 56)
 
                     DetailRow(
-                        label: "Origin",
+                        label: String(localized: .characterDetailOriginLabel),
                         value: character.origin,
                         systemImage: "globe"
                     )
@@ -124,7 +124,7 @@ struct CharacterDetailView: View {
                         .padding(.leading, 56)
 
                     DetailRow(
-                        label: "Location",
+                        label: String(localized: .characterDetailLocationLabel),
                         value: character.location,
                         systemImage: "mappin.and.ellipse"
                     )
@@ -143,11 +143,16 @@ struct CharacterDetailView: View {
     private var episodes: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Text("Episodes")
+                Text(.characterDetailEpisodesTitle)
                     .font(.title2.bold())
 
                 if !viewModel.episodes.isEmpty {
-                    Text("\(viewModel.episodes.count)")
+                    Text(
+                        String(
+                            localized: "characterDetail.episodesCountBadge",
+                            defaultValue: "\(viewModel.episodes.count)"
+                        )
+                    )
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.green)
                         .padding(.horizontal, 10)
@@ -165,7 +170,7 @@ struct CharacterDetailView: View {
 
             case .loaded, .empty:
                 if viewModel.episodes.isEmpty {
-                    Text("This character doesn't appear in any episode.")
+                    Text(.characterDetailNoEpisodes)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 8)
@@ -222,7 +227,7 @@ struct CharacterDetailView: View {
         )
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Loading episodes")
+        .accessibilityLabel(.characterDetailLoadingEpisodesAccessibilityLabel)
     }
 
     private func episodesUnavailable(_ error: AppError) -> some View {
@@ -237,7 +242,7 @@ struct CharacterDetailView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
-            Button("Try again") {
+            Button(.characterDetailRetryButton) {
                 Task {
                     await viewModel.retry()
                 }
@@ -262,7 +267,7 @@ struct CharacterDetailView: View {
         } description: {
             Text(error.message)
         } actions: {
-            Button("Try again") {
+            Button(.characterDetailRetryButton) {
                 Task {
                     await viewModel.retry()
                 }
@@ -393,8 +398,15 @@ extension Episode {
     // El dominio guarda una Date y presentación decide cómo se escribe, así que la fecha
     // sale en el formato del dispositivo: "2 dic 2013" en España y "Dec 2, 2013" en
     // Estados Unidos, sin que el modelo sepa nada de locales.
+    //
+    // La zona horaria va fijada a GMT a propósito, y es lo mismo que hace el mapper al
+    // parsear: una fecha de emisión es un día de calendario, no un instante. La API dice
+    // "December 2, 2013" sin hora, así que se guarda como la medianoche de ese día en
+    // GMT; si aquí se formatease en la zona del dispositivo, en América —cualquier
+    // zona con desfase negativo— esa medianoche cae el día anterior y el piloto saldría
+    // emitido el 1 de diciembre. El locale, en cambio, sí es el del usuario.
     var formattedAirDate: String? {
-        airDate?.formatted(.dateTime.day().month(.abbreviated).year())
+        airDate?.formatted(Date.FormatStyle(timeZone: .gmt).day().month(.abbreviated).year())
     }
 
     // "S01E01" se lee de un vistazo pero VoiceOver lo deletrea letra a letra, así que
@@ -406,17 +418,20 @@ extension Episode {
             .compactMap { Int($0) }
 
         guard numbers.count == 2 else { return code }
-        return "Season \(numbers[0]), episode \(numbers[1])"
+        return String(
+            localized: "characterDetail.episodeSpokenCode",
+            defaultValue: "Season \(numbers[0]), episode \(numbers[1])"
+        )
     }
 }
 
 extension Character.Gender {
     var displayName: String {
         switch self {
-        case .female: "Female"
-        case .male: "Male"
-        case .genderless: "Genderless"
-        case .unknown: "Unknown"
+        case .female: String(localized: .characterGenderFemale)
+        case .male: String(localized: .characterGenderMale)
+        case .genderless: String(localized: .characterGenderGenderless)
+        case .unknown: String(localized: .characterGenderUnknown)
         }
     }
 }

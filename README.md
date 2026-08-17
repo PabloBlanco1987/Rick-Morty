@@ -231,9 +231,6 @@ Lo que se cubre, por capas:
 Cosas que faltan **a sabiendas**, no por descuido. Están comentadas en el código, en el
 punto exacto donde entrarían:
 
-- **Localización.** Los textos están en inglés y escritos en el código. El sitio ya está
-  preparado: entrarían como `LocalizedStringResource` sobre un String Catalog sin cambiar
-  la forma de `AppError+Presentation` ni tocar una sola vista.
 - **Poda de la caché de disco.** Hoy el directorio crece sin límite y solo lo vacía el
   sistema cuando necesita espacio. Los 826 avatares son unos 20 MB en el peor caso, así
   que cabe entero; entraría como un `trim(to:)` al pasar a segundo plano, ordenando por

@@ -29,11 +29,11 @@ struct CharacterListView: View {
 
     var body: some View {
         content
-            .navigationTitle("Characters")
+            .navigationTitle(.characterListTitle)
             // La búsqueda es del servidor, no un filtrado de lo que ya está cargado:
             // buscar entre las veinte celdas que ha traído la primera página sería
             // buscar en el 2% de los personajes y decirle al usuario que no hay más.
-            .searchable(text: $viewModel.searchText, prompt: "Search characters")
+            .searchable(text: $viewModel.searchText, prompt: .characterListSearchPrompt)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -43,13 +43,17 @@ struct CharacterListView: View {
                         // pantalla es lo que explica por qué se están viendo doce
                         // personajes en vez de ochocientos
                         Label(
-                            "Filters",
+                            .characterListFiltersButtonTitle,
                             systemImage: viewModel.hasActiveFilters
                                 ? "line.3.horizontal.decrease.circle.fill"
                                 : "line.3.horizontal.decrease.circle"
                         )
                     }
-                    .accessibilityLabel(viewModel.hasActiveFilters ? "Filters, active" : "Filters")
+                    .accessibilityLabel(
+                        viewModel.hasActiveFilters
+                            ? .characterListFiltersButtonActiveAccessibilityLabel
+                            : .characterListFiltersButtonTitle
+                    )
                 }
             }
             .sheet(isPresented: $isShowingFilters) {
@@ -154,7 +158,7 @@ struct CharacterListView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                Button("Try again") { viewModel.retryNextPage() }
+                Button(.characterListRetryButton) { viewModel.retryNextPage() }
                     .buttonStyle(.bordered)
             }
             .frame(maxWidth: .infinity)
@@ -163,7 +167,7 @@ struct CharacterListView: View {
             ProgressView()
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
-                .accessibilityLabel("Loading more characters")
+                .accessibilityLabel(.characterListLoadingMoreAccessibilityLabel)
         }
         // Cuando ya no quedan páginas no se pone nada. Un "no hay más" al final de una
         // lista de 826 personajes es ruido: que se acabe ya se ve.
@@ -180,25 +184,35 @@ struct CharacterListView: View {
     // MARK: - Estados
 
     // Vacío por una búsqueda y vacío de verdad no son el mismo estado para el usuario:
-    // en el primero hay algo que hacer —quitar los filtros— y en el segundo no hay nada
+    // en el primero hay algo que hacer —quitar lo que acota— y en el segundo no hay nada
     // que decir más que que no hay nada.
     @ViewBuilder
     private var emptyView: some View {
-        if viewModel.hasActiveFilters {
+        if viewModel.isNarrowed {
             ContentUnavailableView {
-                Label("No matches", systemImage: "magnifyingglass")
+                Label(.characterListNoMatchesTitle, systemImage: "magnifyingglass")
             } description: {
-                Text("No characters match what you're looking for.")
+                Text(.characterListNoMatchesDescription)
             } actions: {
-                Button("Clear filters") { viewModel.clearFilters() }
+                // El botón dice lo que va a quitar: ofrecer "quitar los filtros" a quien
+                // solo ha tecleado una búsqueda es ofrecerle deshacer algo que no hizo
+                Button(clearNarrowingTitle) { viewModel.clearSearchAndFilters() }
                     .buttonStyle(.borderedProminent)
             }
         } else {
             ContentUnavailableView(
-                "No characters",
+                .characterListEmptyTitle,
                 systemImage: "person.slash",
-                description: Text("There's nothing to show here yet.")
+                description: Text(.characterListEmptyDescription)
             )
+        }
+    }
+
+    private var clearNarrowingTitle: LocalizedStringResource {
+        switch (viewModel.hasSearchText, viewModel.hasActiveFilters) {
+        case (true, true): .characterListClearSearchAndFiltersButton
+        case (true, false): .characterListClearSearchButton
+        default: .characterListClearFiltersButton
         }
     }
 
@@ -218,7 +232,7 @@ struct CharacterListView: View {
         // Para VoiceOver esto es una sola cosa que dice "cargando", no ocho celdas de
         // texto falso
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Loading characters")
+        .accessibilityLabel(.characterListLoadingAccessibilityLabel)
     }
 
     private func errorView(_ error: AppError) -> some View {
@@ -227,7 +241,7 @@ struct CharacterListView: View {
         } description: {
             Text(error.message)
         } actions: {
-            Button("Try again") {
+            Button(.characterListRetryButton) {
                 Task { await viewModel.retry() }
             }
             .buttonStyle(.borderedProminent)

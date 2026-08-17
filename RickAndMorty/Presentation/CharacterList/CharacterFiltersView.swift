@@ -19,12 +19,12 @@ struct CharacterFiltersView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(String(localized: "characterFilters.statusSection.title")) {
-                    Picker(String(localized: "characterFilters.statusPicker.title"), selection: $viewModel.statusFilter) {
+                Section(.characterFiltersStatusSectionTitle) {
+                    Picker(.characterFiltersStatusPickerTitle, selection: $viewModel.statusFilter) {
                         // "Any" es un caso más de la selección y no un botón de quitar
                         // aparte: quitar un filtro es elegir no filtrar por él, y así se
                         // ve en el mismo sitio en el que se puso
-                        Text(String(localized: "characterFilters.status.any")).tag(Character.Status?.none)
+                        Text(.characterFiltersStatusAny).tag(Character.Status?.none)
                         ForEach(Character.Status.allCases, id: \.self) { status in
                             Text(status.displayName).tag(Character.Status?.some(status))
                         }
@@ -35,9 +35,9 @@ struct CharacterFiltersView: View {
                     .accessibilityIdentifier("filter-status")
                 }
 
-                Section(String(localized: "characterFilters.genderSection.title")) {
-                    Picker(String(localized: "characterFilters.genderPicker.title"), selection: $viewModel.genderFilter) {
-                        Text(String(localized: "characterFilters.gender.any")).tag(Character.Gender?.none)
+                Section(.characterFiltersGenderSectionTitle) {
+                    Picker(.characterFiltersGenderPickerTitle, selection: $viewModel.genderFilter) {
+                        Text(.characterFiltersGenderAny).tag(Character.Gender?.none)
                         ForEach(Character.Gender.allCases, id: \.self) { gender in
                             Text(gender.displayName).tag(Character.Gender?.some(gender))
                         }
@@ -46,7 +46,7 @@ struct CharacterFiltersView: View {
                 }
 
                 Section {
-                    TextField(String(localized: "characterFilters.species"), text: $viewModel.speciesFilter)
+                    TextField(String(localized: .characterFiltersSpecies), text: $viewModel.speciesFilter)
                         // La API compara la especie por texto, así que ni el corrector ni
                         // la mayúscula automática ayudan aquí: solo cambian lo que el
                         // usuario ha escrito a propósito
@@ -54,21 +54,21 @@ struct CharacterFiltersView: View {
                         .textInputAutocapitalization(.never)
                         .accessibilityIdentifier("filter-species")
                 } header: {
-                    Text("Species")
+                    Text(.characterFiltersSpeciesSectionTitle)
                 } footer: {
-                    Text("The server matches partial names, so \"hum\" already finds humans.")
+                    Text(.characterFiltersSpeciesSectionFooter)
                 }
             }
-            .navigationTitle("Filters")
+            .navigationTitle(.characterFiltersTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Clear") { viewModel.clearFilters() }
+                    Button(.characterFiltersClearButton) { viewModel.clearFilters() }
                         .disabled(!viewModel.hasActiveFilters)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button(.characterFiltersDoneButton) { dismiss() }
                 }
             }
         }

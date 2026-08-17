@@ -17,7 +17,11 @@ enum RickAndMortyAPI {
         return components
     }()
 
-    static func characters(page: Int, filter: CharacterFilter = .empty) -> Endpoint {
+    static func characters(
+        page: Int,
+        filter: CharacterFilter = .empty,
+        freshness: Freshness = .acceptCached
+    ) -> Endpoint {
         var items = [URLQueryItem(name: "page", value: String(page))]
 
         if !filter.trimmedName.isEmpty {
@@ -33,7 +37,17 @@ enum RickAndMortyAPI {
             items.append(URLQueryItem(name: "species", value: filter.trimmedSpecies))
         }
 
-        return Endpoint(path: "/character", queryItems: items)
+        // Aquí es donde "fresco" se traduce a HTTP. La API sirve las páginas con noventa
+        // días de caducidad, así que con la política normal una página ya vista sale de
+        // la caché de URLSession sin tocar la red; revalidar es mandar el ETag guardado y
+        // recibir un 304 sin cuerpo si no ha cambiado, que es lo que un refresco debe
+        // costar: una ida y vuelta, no otra descarga.
+        let cachePolicy: URLRequest.CachePolicy = switch freshness {
+        case .acceptCached: .useProtocolCachePolicy
+        case .fresh: .reloadRevalidatingCacheData
+        }
+
+        return Endpoint(path: "/character", queryItems: items, cachePolicy: cachePolicy)
     }
 
     static func character(id: Int) -> Endpoint {

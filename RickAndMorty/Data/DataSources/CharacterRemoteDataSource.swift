@@ -12,8 +12,12 @@ struct CharacterRemoteDataSource: Sendable {
         self.client = client
     }
 
-    func characters(page: Int, filter: CharacterFilter) async throws(AppError) -> PageDTO<CharacterDTO> {
-        try await client.send(RickAndMortyAPI.characters(page: page, filter: filter))
+    func characters(
+        page: Int,
+        filter: CharacterFilter,
+        freshness: Freshness = .acceptCached
+    ) async throws(AppError) -> PageDTO<CharacterDTO> {
+        try await client.send(RickAndMortyAPI.characters(page: page, filter: filter, freshness: freshness))
     }
 
     func character(id: Int) async throws(AppError) -> CharacterDTO {

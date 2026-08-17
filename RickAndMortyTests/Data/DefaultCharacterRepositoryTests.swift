@@ -10,7 +10,8 @@ struct DefaultCharacterRepositoryTests {
 
     @Test("A listing is mapped into domain characters carrying the requested page")
     func mapsListing() async throws {
-        let page = try await makeSUT(.json(JSONFixtures.charactersPage)).characters(page: 1, filter: .empty)
+        let page = try await makeSUT(.json(JSONFixtures.charactersPage))
+            .characters(page: 1, filter: .empty, freshness: .acceptCached)
 
         #expect(page.items.map(\.name) == ["Rick Sanchez", "Morty Smith"])
         #expect(page.totalPages == 42)
@@ -22,7 +23,8 @@ struct DefaultCharacterRepositoryTests {
         // La API contesta a ?name=zzzz con un 404, no con un results vacío. Dejarlo
         // pasar como fallo sería enseñar una pantalla de error por una búsqueda
         // normal sin resultados, así que se traduce aquí.
-        let page = try await makeSUT(.failure(.notFound)).characters(page: 1, filter: CharacterFilter(name: "zzzz"))
+        let page = try await makeSUT(.failure(.notFound))
+            .characters(page: 1, filter: CharacterFilter(name: "zzzz"), freshness: .acceptCached)
 
         #expect(page.items.isEmpty)
         #expect(page.currentPage == 1)
@@ -31,7 +33,8 @@ struct DefaultCharacterRepositoryTests {
 
     @Test("The empty page keeps the page number that was asked for")
     func emptyPageRemembersItsPage() async throws {
-        let page = try await makeSUT(.failure(.notFound)).characters(page: 7, filter: CharacterFilter(name: "zzzz"))
+        let page = try await makeSUT(.failure(.notFound))
+            .characters(page: 7, filter: CharacterFilter(name: "zzzz"), freshness: .acceptCached)
         #expect(page.currentPage == 7)
     }
 
@@ -40,7 +43,7 @@ struct DefaultCharacterRepositoryTests {
         let sut = makeSUT(.failure(.server(statusCode: 500)))
 
         await #expect(throws: AppError.server(statusCode: 500)) {
-            _ = try await sut.characters(page: 1, filter: .empty)
+            _ = try await sut.characters(page: 1, filter: .empty, freshness: .acceptCached)
         }
     }
 

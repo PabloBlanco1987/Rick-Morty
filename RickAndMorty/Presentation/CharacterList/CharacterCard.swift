@@ -40,6 +40,10 @@ struct CharacterCard: View, Equatable {
         // distinto largo no dejen el fondo a media asta
         .frame(maxHeight: .infinity, alignment: .top)
         .background(.background.secondary, in: .rect(cornerRadius: 16))
+        // El fondo redondeado no recorta lo que lleva encima: sin esto la imagen —que es
+        // un rectángulo— asoma con las esquinas cuadradas por encima de las redondeadas
+        // del fondo, y la celda tiene el borde de arriba distinto al de abajo
+        .clipShape(.rect(cornerRadius: 16))
         .contentShape(.rect(cornerRadius: 16))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
@@ -67,10 +71,10 @@ struct CharacterCardSkeleton: View {
                 }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Character name")
+                Text(.characterCardSkeletonNameLabel)
                     .font(.headline)
 
-                Text("Species")
+                Text(.characterCardSkeletonSpeciesLabel)
                     .font(.subheadline)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -78,6 +82,7 @@ struct CharacterCardSkeleton: View {
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .background(.background.secondary, in: .rect(cornerRadius: 16))
+        .clipShape(.rect(cornerRadius: 16))
     }
 }
 

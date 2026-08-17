@@ -54,6 +54,11 @@ actor RateLimiter {
     private var consecutiveRateLimits = 0
     private var successStreak = 0
 
+    // Cuándo se puso el último freno. Es lo que separa "otro 429" de "el mismo 429": lo
+    // que ya estaba en vuelo cuando se puso el freno pertenece a la ráfaga que lo
+    // provocó, y no puede contar como una racha nueva
+    private var holdStartedAt: ContinuousClock.Instant?
+
     // internal para que los tests puedan comprobar el freno y el ritmo sin mirar el reloj
     var isCoolingOff: Bool { remainingCoolOff != nil }
     var currentRate: Double { rate }
@@ -117,7 +122,22 @@ actor RateLimiter {
 
     // El servidor ha dicho que vamos demasiado rápido. Se para todo el mundo y se baja el
     // ritmo: reintentar al mismo paso sería alargar el castigo.
-    func reportRateLimited(retryAfter: Duration?) {
+    //
+    // issuedAt es cuándo salió la petición que ha recibido el 429 —quien llama lo toma
+    // justo después de acquire()— y es lo que evita contar una ráfaga como una racha.
+    // Cuando Cloudflare corta, los cuatro huecos de imágenes y la página en vuelo
+    // contestan 429 casi a la vez; contados uno a uno, un solo aviso del servidor dejaba
+    // el freno en dieciséis segundos y el ritmo en el suelo, y hacían falta ciento
+    // ochenta aciertos para recuperarlo. Como acquire() no deja salir nada mientras dura
+    // el freno, todo lo que salió antes de ponerlo pertenece a la ráfaga que lo provocó:
+    // el primero pone el freno y los demás no añaden nada. Solo un 429 de una petición
+    // que salió después —o sea, cuando ya se había levantado— cuenta como "otra vez".
+    // Es lo mismo que hace TCP: baja a la mitad una vez por pérdida, no por paquete.
+    func reportRateLimited(retryAfter: Duration?, issuedAt: ContinuousClock.Instant = .now) {
+        // Sin ritmo (tests y previews) tampoco hay freno, diga lo que diga la cabecera
+        guard rate.isFinite else { return }
+        if let holdStartedAt, issuedAt < holdStartedAt { return }
+
         consecutiveRateLimits += 1
         successStreak = 0
 
@@ -125,8 +145,10 @@ actor RateLimiter {
         // cuánto, manda él.
         let backoff = coolOff * (1 << min(consecutiveRateLimits - 1, 3))
         let hold = retryAfter.map { min($0, Self.maxRetryAfter) } ?? backoff
-        let until = ContinuousClock.now.advanced(by: hold)
+        let now = ContinuousClock.now
+        let until = now.advanced(by: hold)
         coolOffUntil = until
+        holdStartedAt = now
 
         // El cubo se vacía y no empieza a llenarse hasta que pase el freno: si se
         // llenara mientras tanto, al levantarse saldría una ráfaga entera de golpe,
@@ -142,7 +164,13 @@ actor RateLimiter {
     // Un acierto reinicia la cuenta de 429 seguidos y, cada tantos, devuelve un poco de
     // ritmo. Sube de uno en uno y baja a la mitad: es más barato equivocarse por lento
     // que volver a ganarse el freno.
-    func reportSuccess() {
+    //
+    // Con el mismo issuedAt que arriba y por la misma razón: un acierto de una petición
+    // que ya estaba en vuelo cuando se puso el freno no dice nada de cómo está el
+    // servidor ahora, así que ni borra la racha de 429 ni cuenta para recuperar ritmo.
+    func reportSuccess(issuedAt: ContinuousClock.Instant = .now) {
+        if let holdStartedAt, issuedAt < holdStartedAt { return }
+
         consecutiveRateLimits = 0
         guard rate < maxRate else {
             successStreak = 0

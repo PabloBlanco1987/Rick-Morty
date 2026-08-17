@@ -2,14 +2,19 @@ import CoreGraphics
 import SwiftUI
 
 // Espera creciente entre intentos, mientras la celda siga en pantalla.
-// Hacen falta porque .task no se dispara sola una segunda vez: sin esto, un mal rato
-// del servidor de dos segundos deja ese hueco en gris para siempre. Y está acotado a
-// propósito: si el fallo no es pasajero, insistir es gastar batería para enseñar lo
-// mismo.
+//
+// Son dos capas de reintento con dos trabajos distintos, y conviene tenerlo claro para
+// que no parezcan la misma cosa dos veces. ImageCache reintenta enseguida —cientos de
+// milisegundos— el tropiezo de una petición, y lo hace una vez para todas las celdas
+// que esperaban esa descarga. Esto de aquí cubre el mal rato de segundos: .task no se
+// dispara sola una segunda vez, así que sin esto un servidor caído durante cinco
+// segundos deja ese hueco en gris hasta que la celda salga y vuelva a entrar. Por eso
+// empieza donde termina la otra, en segundos, y está acotado: si el fallo no es
+// pasajero, insistir es gastar batería para enseñar lo mismo.
+//
 // Fuera del tipo porque CachedAsyncImage es genérico y un genérico no admite
 // propiedades estáticas almacenadas.
 private let imageRetryDelays: [Duration] = [
-    .milliseconds(300),
     .seconds(1),
     .seconds(3),
     .seconds(8),
@@ -118,6 +123,12 @@ struct CachedAsyncImage<Placeholder: View>: View {
                 // Si a quien han cancelado es a esta celda, se está yendo de la
                 // pantalla y ya no hay nada que reintentar
                 if Task.isCancelled { return }
+                // Y solo se insiste en lo que puede arreglarse esperando. Un 404 va a
+                // seguir siendo un 404 dentro de ocho segundos, y unos bytes que no
+                // decodifican tampoco van a mejorar: repetir eso son peticiones —y
+                // fichas del limitador— gastadas en una imagen que no va a llegar,
+                // multiplicadas por cada celda que la tenga.
+                guard error.isRetryable else { return }
             }
         }
 

@@ -82,7 +82,12 @@ struct StubbedCharacterRepository: CharacterRepository {
         }
     }()
 
-    func characters(page: Int, filter: CharacterFilter) async throws(AppError) -> Page<Character> {
+    // freshness no aplica: en memoria no hay nada más fresco que lo que hay
+    func characters(
+        page: Int,
+        filter: CharacterFilter,
+        freshness: Freshness
+    ) async throws(AppError) -> Page<Character> {
         // Los mismos criterios que aplica el servidor, y como él: por coincidencia
         // parcial y sin distinguir mayúsculas
         let matches = all.filter { character in

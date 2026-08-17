@@ -147,10 +147,33 @@ final class CharacterListViewModel {
         }
     }
 
-    var hasActiveFilters: Bool { !filter.isEmpty }
+    // Los filtros de la hoja: estado, género y especie. La búsqueda va aparte a propósito
+    // aunque para el dominio sea un criterio más: tiene su propio control —la barra— con
+    // su propia forma de borrarse. Contarla aquí encendía el icono de filtros al teclear,
+    // VoiceOver anunciaba "Filters, active" sin haber tocado un filtro, y el "Clear" de
+    // la hoja borraba un texto que no está en la hoja.
+    var hasActiveFilters: Bool {
+        filter.status != nil || filter.gender != nil || !filter.trimmedSpecies.isEmpty
+    }
 
+    var hasSearchText: Bool { !filter.trimmedName.isEmpty }
+
+    // Si la lista está acotada por algo, sea la búsqueda o los filtros. Es lo que separa
+    // "no hay nada" de "no hay nada que encaje", que se cuentan distinto.
+    var isNarrowed: Bool { !filter.isEmpty }
+
+    // Lo que hace el "Clear" de la hoja: solo lo que está en la hoja
     func clearFilters() {
-        guard !filter.isEmpty else { return }
+        guard hasActiveFilters else { return }
+        filter.status = nil
+        filter.gender = nil
+        filter.species = ""
+        reload(afterTyping: false)
+    }
+
+    // Lo que ofrece la pantalla vacía: quitar todo lo que acota, la búsqueda incluida
+    func clearSearchAndFilters() {
+        guard isNarrowed else { return }
         filter = .empty
         reload(afterTyping: false)
     }
@@ -198,6 +221,11 @@ final class CharacterListViewModel {
     // Pull to refresh. No pone .loading porque el propio control de refresco ya es el
     // indicador; enseñar además los esqueletos sería tapar la lista que el usuario
     // tiene delante mientras tira de ella.
+    //
+    // Y pide la página fresca a propósito: es la única carga que lo hace. La API sirve
+    // las páginas con noventa días de caducidad, así que sin decirlo la primera página
+    // saldría de la caché de red igual que la primera vez y el gesto no traería nada.
+    // Refrescar es preguntarle al servidor si ha cambiado, aunque cueste una ida y vuelta.
     func refresh() async {
         searchTask?.cancel()
         searchTask = nil
@@ -205,10 +233,10 @@ final class CharacterListViewModel {
         pagingTask = nil
         isLoadingNextPage = false
         nextPageError = nil
-        await loadFirstPage(showingPlaceholder: false)
+        await loadFirstPage(showingPlaceholder: false, freshness: .fresh)
     }
 
-    private func loadFirstPage(showingPlaceholder: Bool) async {
+    private func loadFirstPage(showingPlaceholder: Bool, freshness: Freshness = .acceptCached) async {
         if showingPlaceholder { state = .loading }
 
         // El filtro se lee aquí y se lleva hasta el final: si cambia mientras la
@@ -223,7 +251,7 @@ final class CharacterListViewModel {
         let requested = filter
 
         do {
-            let page = try await fetchCharacters.execute(page: 1, filter: requested)
+            let page = try await fetchCharacters.execute(page: 1, filter: requested, freshness: freshness)
             guard !Task.isCancelled, requested.normalized == filter.normalized else { return }
 
             lastPage = page

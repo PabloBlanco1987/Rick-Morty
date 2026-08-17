@@ -39,9 +39,9 @@ extension Character.Status {
     // idiomas, y así el mismo caso se puede pintar distinto en el detalle sin tocarlo.
     var displayName: String {
         switch self {
-        case .alive: "Alive"
-        case .dead: "Dead"
-        case .unknown: "Unknown"
+        case .alive: String(localized: .characterStatusAlive)
+        case .dead: String(localized: .characterStatusDead)
+        case .unknown: String(localized: .characterStatusUnknown)
         }
     }
 
@@ -57,9 +57,9 @@ extension Character.Status {
     // después de un nombre y una especie, se entiende regular.
     var accessibilityDescription: String {
         switch self {
-        case .alive: "Alive"
-        case .dead: "Dead"
-        case .unknown: "Status unknown"
+        case .alive: String(localized: .characterStatusAlive)
+        case .dead: String(localized: .characterStatusDead)
+        case .unknown: String(localized: .characterStatusUnknownAccessibilityLabel)
         }
     }
 }

@@ -16,6 +16,10 @@ struct Endpoint: Hashable, Sendable {
     let path: String
     var queryItems: [URLQueryItem] = []
     var method: HTTPMethod = .get
+    // Por petición y no solo en la sesión: la misma URL se pide con la política normal al
+    // navegar y revalidando cuando el usuario refresca, y la sesión no puede saber cuál
+    // de las dos es
+    var cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy
 
     func urlRequest(base: URLComponents) -> URLRequest? {
         var components = base
@@ -27,7 +31,7 @@ struct Endpoint: Hashable, Sendable {
 
         guard let url = components.url else { return nil }
 
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, cachePolicy: cachePolicy)
         request.httpMethod = method.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         return request

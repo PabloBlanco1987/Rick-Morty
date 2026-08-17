@@ -80,7 +80,7 @@ struct CharacterListSearchTests {
         await sut.searchTask?.value
 
         #expect(sut.state == .empty)
-        #expect(sut.hasActiveFilters)
+        #expect(sut.isNarrowed)
     }
 
     // MARK: - Filtros
@@ -159,8 +159,10 @@ struct CharacterListSearchTests {
         #expect(await repository.requestedPages == [1, 1, 2])
     }
 
-    @Test("Clearing the filters goes back to the unfiltered list")
+    @Test("Clearing the filters keeps the search and asks the server again")
     func clearingFiltersReloads() async {
+        // La búsqueda no es un filtro de la hoja: tiene su propia barra y su propia
+        // forma de borrarse, así que "Clear" no puede llevársela por delante
         let repository = StubCharacterRepository(characters: .success(.stub(page: 1, totalPages: 1, ids: 1...3)))
         let sut = makeSUT(repository)
         await sut.onAppear()
@@ -172,7 +174,7 @@ struct CharacterListSearchTests {
         await sut.searchTask?.value
 
         #expect(!sut.hasActiveFilters)
-        #expect(await repository.requestedFilters.last == .empty)
+        #expect(await repository.requestedFilters.last == CharacterFilter(name: "rick"))
     }
 
     @Test("Clearing filters that were already empty asks for nothing")

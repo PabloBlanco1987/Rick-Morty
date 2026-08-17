@@ -66,11 +66,13 @@ struct URLSessionHTTPClient: HTTPClient {
         logger.logResponse(http, for: request, duration: elapsed)
 
         // El limitador se entera aquí y no en la traducción a AppError porque el
-        // Retry-After va en la respuesta cruda, y esta es la única que lo tiene delante
+        // Retry-After va en la respuesta cruda, y esta es la única que lo tiene delante.
+        // Y se le dice cuándo salió la petición: es lo que le deja distinguir un 429 de
+        // la ráfaga que ya frenó de uno nuevo.
         if http.statusCode == 429 {
-            await limiter.reportRateLimited(retryAfter: http.retryAfter)
+            await limiter.reportRateLimited(retryAfter: http.retryAfter, issuedAt: start)
         } else if (200..<300).contains(http.statusCode) {
-            await limiter.reportSuccess()
+            await limiter.reportSuccess(issuedAt: start)
         }
 
         if let error = AppError(statusCode: http.statusCode) { throw error }
@@ -91,10 +93,12 @@ struct URLSessionHTTPClient: HTTPClient {
 
 extension URLSession {
     // La sesión con la que va la app.
-    // Toda la caché de respuestas es este URLCache privado: la API manda ETag y
-    // Cache-Control, y con .useProtocolCachePolicy una página ya vista se revalida
-    // con una petición condicional (un 304 sin cuerpo) o sale directamente de disco.
-    // No hace falta montar ninguna caché a mano.
+    // Toda la caché de respuestas es este URLCache privado: la API manda ETag y un
+    // Cache-Control de noventa días, así que con .useProtocolCachePolicy una página ya
+    // vista sale directamente de disco sin tocar la red —volver del detalle o repetir una
+    // búsqueda no cuestan una petición— y solo se revalida con una condicional (un 304
+    // sin cuerpo) cuando el endpoint lo pide a propósito, que es lo que hace el pull to
+    // refresh a través de Freshness. No hace falta montar ninguna caché a mano.
     static let rickAndMorty: URLSession = {
         let configuration = URLSessionConfiguration.default
         configuration.urlCache = URLCache(
