@@ -91,7 +91,9 @@ extension Character {
             gender: .male,
             origin: "Earth (C-137)",
             location: "Citadel of Ricks",
-            imageURL: URL(string: "https://rickandmortyapi.com/api/character/avatar/1.jpeg"),
+            // Un avatar por id, como en la API: así un test puede distinguir las
+            // imágenes de una página de las de la siguiente
+            imageURL: URL(string: "https://rickandmortyapi.com/api/character/avatar/\(id).jpeg"),
             episodeIDs: episodeIDs
         )
     }

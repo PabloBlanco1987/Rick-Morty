@@ -63,8 +63,11 @@ actor ImageCache {
     private var lastWaiterToken = 0
 
     // internal para que los tests puedan comprobar que una descarga que ya no
-    // interesa a nadie desaparece de verdad
+    // interesa a nadie desaparece de verdad, y que una pausa retiene de verdad
     var inFlightCount: Int { inFlight.count }
+    var waitingDownloadCount: Int {
+        get async { await queue.waitingCount }
+    }
 
     init(
         directory: URL = ImageCache.defaultDirectory,
@@ -84,10 +87,17 @@ actor ImageCache {
         // 429 y se lleve por delante también la carga de la página siguiente.
         // No retrasa nada de lo que ya esté en memoria o en disco: eso ni pasa por aquí.
         settleDelay: Duration = .milliseconds(120),
-        loader: @escaping DataLoader = ImageCache.retrying(ImageCache.download)
+        // El mismo que usa el cliente HTTP: el cupo del servidor es uno para JSON e
+        // imágenes, así que el freno tiene que ser el mismo objeto
+        limiter: RateLimiter = .shared,
+        // nil y no un valor por defecto porque el de producción necesita el limitador de
+        // arriba, y un valor por defecto no puede leer otro parámetro
+        loader: DataLoader? = nil
     ) {
         self.directory = directory
-        self.loader = loader
+        self.loader = loader ?? Self.retrying({ (url: URL) async throws(AppError) -> Data in
+            try await Self.download(url, through: limiter)
+        })
         self.settleDelay = settleDelay
         self.queue = DownloadQueue(limit: maxConcurrentDownloads)
         // NSCache ya se vacía sola cuando el sistema avisa de presión de memoria, así
@@ -108,7 +118,7 @@ actor ImageCache {
             return LoadedImage(image: entry.image, origin: .memory)
         }
 
-        let fetched = try await fetch(url)
+        let fetched = try await fetch(url, priority: .visible)
 
         // Antes de decodificar, que es la parte cara. Si la celda ya se ha ido de la
         // pantalla no tiene sentido gastar CPU y memoria en un bitmap que nadie va a
@@ -122,6 +132,38 @@ actor ImageCache {
 
         memory.setObject(Entry(image), forKey: key, cost: image.decodedByteCount)
         return LoadedImage(image: image, origin: fetched.origin)
+    }
+
+    // Deja en disco las imágenes de una página que acaba de llegar y aún no se ve, para
+    // que cuando el usuario baje hasta ella las celdas aparezcan ya con su imagen en vez
+    // de con un hueco que se rellena. Es la sensación de una app que "ya lo tenía".
+    //
+    // Va en secuencia a propósito: ocupa como mucho un hueco de los cuatro y gasta el
+    // cupo del servidor de uno en uno, así que nunca compite con lo que se está mirando.
+    // Y va por la misma `fetch` que las celdas, con prioridad baja: si una celda visible
+    // pide una imagen que ya se está calentando, se engancha a esa descarga; y si nadie
+    // más la esperaba, cancelar el calentamiento cancela la descarga con él.
+    //
+    // Límite conocido: una celda visible que se enganche a un calentamiento que aún
+    // espera hueco al fondo de la cola espera detrás de las visibles que ya estaban
+    // encoladas. Como el calentamiento es secuencial, es como mucho una ronda de cuatro
+    // descargas, y no compensa una promoción de prioridad para eso.
+    func warm(_ urls: [URL]) async {
+        for url in urls {
+            guard !Task.isCancelled else { return }
+            // Lo que ya está en disco no necesita ni la tarea: un stat es más barato que
+            // montar la descarga para descubrir que no hacía falta
+            guard !FileManager.default.fileExists(atPath: fileURL(for: url).path()) else { continue }
+            _ = try? await fetch(url, priority: .prefetch)
+        }
+    }
+
+    // La vista lo pone mientras el scroll va lanzado y lo quita cuando para: durante un
+    // fling, cada petición que sale es cupo gastado en una celda que ya no está cuando
+    // llega. Lo que hay en memoria o en disco no pasa por la cola, así que sigue
+    // apareciendo; solo se retiene la salida a red.
+    func setNetworkPaused(_ paused: Bool) async {
+        await queue.setPaused(paused)
     }
 
     // MARK: - Bytes
@@ -144,8 +186,8 @@ actor ImageCache {
         var waiters: Set<Int>
     }
 
-    private func fetch(_ url: URL) async throws(AppError) -> Fetched {
-        let (task, token) = joinDownload(for: url)
+    private func fetch(_ url: URL, priority: DownloadQueue.Priority) async throws(AppError) -> Fetched {
+        let (task, token) = joinDownload(for: url, priority: priority)
         defer { leaveDownload(for: url, token: token, cancelled: false) }
 
         do {
@@ -168,7 +210,12 @@ actor ImageCache {
         }
     }
 
-    private func joinDownload(for url: URL) -> (task: Task<Fetched, any Error>, token: Int) {
+    // La prioridad es la de quien abre la descarga. Si ya estaba en vuelo, quien llega se
+    // engancha a ella tal cual: lo que no se puede duplicar es la petición.
+    private func joinDownload(
+        for url: URL,
+        priority: DownloadQueue.Priority
+    ) -> (task: Task<Fetched, any Error>, token: Int) {
         lastWaiterToken += 1
         let token = lastWaiterToken
 
@@ -191,13 +238,16 @@ actor ImageCache {
 
             // La celda tiene que asentarse antes de que se gaste una petición por ella.
             // Si el usuario ya ha pasado de largo, para cuando termine esta espera esta
-            // tarea estará cancelada y no se llega a pedir nada.
-            try await Task.sleep(for: settleDelay)
+            // tarea estará cancelada y no se llega a pedir nada. Un precalentamiento no
+            // es una celda que pueda irse, así que no tiene nada que asentar.
+            if priority == .visible {
+                try await Task.sleep(for: settleDelay)
+            }
             // El hueco solo se pide para ir a la red: un acierto de disco no compite
             // por conexiones y no tiene por qué esperar a nadie
             // La firma va escrita entera porque la inferencia de throws tipado dentro
             // de un closure literal se queda en `any Error`
-            let data = try await queue.enqueue { () async throws(AppError) -> Data in
+            let data = try await queue.enqueue(priority: priority) { () async throws(AppError) -> Data in
                 try await loader(url)
             }
             // Se guardan los bytes originales y no el bitmap reducido: así, si mañana
@@ -360,7 +410,7 @@ actor ImageCache {
             } catch {
                 // El 429 se queda fuera a propósito, y es la diferencia entre salir del
                 // agujero y cavarlo más hondo: de él se encarga el freno compartido de
-                // la cola. Reintentarlo aquí sería que cada una de las imágenes en
+                // RateLimiter. Reintentarlo aquí sería que cada una de las imágenes en
                 // vuelo repitiera por su cuenta la ráfaga que nos ganó el límite.
                 guard error.isRetryable, error != .rateLimited else { throw error }
                 lastError = error
@@ -378,7 +428,14 @@ actor ImageCache {
     // Solo se traza lo que sale a la red de verdad. Lo que se resuelve en memoria o en
     // disco no llega hasta aquí, y así el log dice qué se está pidiendo fuera y no
     // cuántas celdas se han pintado.
-    static func download(_ url: URL) async throws(AppError) -> Data {
+    //
+    // Y por lo mismo, es aquí donde se pide permiso al limitador: una ficha por petición
+    // que sale, y ni una por las que se resuelven antes. Como se llama desde dentro de
+    // la cola, el orden es hueco (LIFO) primero y ficha después: la prioridad se aplica
+    // al recurso escaso, que cuando el servidor aprieta es la ficha.
+    static func download(_ url: URL, through limiter: RateLimiter) async throws(AppError) -> Data {
+        try await limiter.acquire()
+
         // Petición explícita en vez de data(from:) —que monta esta misma por dentro—
         // para poder trazarla
         let request = URLRequest(url: url)
@@ -409,6 +466,14 @@ actor ImageCache {
         }
 
         logger.logResponse(http, for: request, duration: elapsed)
+
+        // El limitador se entera aquí y no en la traducción a AppError porque el
+        // Retry-After va en la respuesta cruda, y esta es la única que lo tiene delante
+        if http.statusCode == 429 {
+            await limiter.reportRateLimited(retryAfter: http.retryAfter)
+        } else if (200..<300).contains(http.statusCode) {
+            await limiter.reportSuccess()
+        }
 
         if let error = AppError(statusCode: http.statusCode) { throw error }
         return data

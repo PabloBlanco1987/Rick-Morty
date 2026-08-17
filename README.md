@@ -5,7 +5,7 @@ personajes, búsqueda y filtros contra el servidor, y ficha de detalle con los e
 en los que sale cada personaje.
 
 SwiftUI + MVVM sobre un núcleo Clean de tres capas, **sin una sola dependencia de
-terceros**, con caché de imágenes propia de dos niveles y 117 pruebas automatizadas.
+terceros**, con caché de imágenes propia de dos niveles y 144 pruebas automatizadas.
 
 | | |
 |---|---|
@@ -117,8 +117,17 @@ no salen nunca de ahí.
 responde 429 en cuanto se le piden varias páginas seguidas, que es exactamente lo que
 produce un scroll rápido. No es un error de servidor: el servidor está bien, somos
 nosotros los que vamos deprisa. Se arregla esperando, no reintentando, y por eso tiene
-su propio caso, su propia espera (segundos en vez de milisegundos) y un freno
-*compartido* en la cola de descargas.
+su propio caso y su propia espera (segundos en vez de milisegundos).
+
+**Un solo ritmo para todo el host (`RateLimiter`).** Cloudflare limita por IP y antes de
+su caché, y avatares y JSON viven en el mismo host: cada imagen y cada página cuentan
+contra el mismo cupo. Por eso el ritmo al que la app sale a la red es una sola pieza que
+comparten el cliente HTTP y la caché de imágenes: un cubo de fichas (ocho por segundo de
+partida) y, si aun así llega un 429, un freno compartido que respeta el `Retry-After` del
+servidor, baja el ritmo a la mitad y lo recupera poco a poco con los aciertos. Limitar
+cuántas descargas van a la vez no bastaba: cuatro imágenes pequeñas y rápidas son
+veinticinco peticiones por segundo, y era ese número —no el de celdas pintadas— el que se
+ganaba el castigo y de paso tumbaba la página siguiente.
 
 **Un enum de estado en lugar de tres banderas.** `ViewState<T>` hace imposible teclear
 «cargando y con error a la vez», y convierte cada vista en un `switch` exhaustivo que el
@@ -173,11 +182,22 @@ las celdas asoman y se van en decenas de milisegundos; pedir esas imágenes es g
 ancho de banda en lo que nadie ha llegado a ver, y esa ráfaga es la que se gana el 429
 que luego tumba la carga de la página siguiente.
 
+Los 120 ms no aguantan un *fling*, en el que cada celda pasa por pantalla en unos 300 ms:
+por eso, **mientras el scroll va lanzado** (`onScrollPhaseChange`, por encima de una
+velocidad) **no sale nada a la red**. Lo que ya está en memoria o en disco sigue
+apareciendo; solo se retiene la salida, y la pausa caduca sola por si nadie la levanta.
+
+Y para que a velocidad de lectura las celdas aparezcan ya con su imagen, **la página que
+acaba de llegar se precalienta a disco** mientras el usuario todavía lee la anterior: en
+secuencia, con prioridad baja en la cola —solo entra cuando no espera nada visible— y
+cancelándose sola cuando llega la página siguiente. Es la sensación de que la app "ya lo
+tenía" sin dejar de pintar progresivamente ni bloquear el scroll.
+
 ---
 
 ## 6. Pruebas
 
-**117 pruebas**: 110 unitarias en **Swift Testing** repartidas en 17 suites, y 7 de
+**144 pruebas**: 137 unitarias en **Swift Testing** repartidas en 20 suites, y 7 de
 interfaz en XCTest.
 
 Dos reglas que sigue toda la suite:
@@ -200,7 +220,7 @@ Lo que se cubre, por capas:
 | Capa | Qué se prueba |
 |---|---|
 | Domain | Paginación, filtros, qué error merece reintento y con cuánta paciencia, coordinación del detalle |
-| Data | Construcción y escapado de URLs, traducción de errores, decodificación, mapeo con degradación, reintentos y esperas, caché de imágenes y cola |
+| Data | Construcción y escapado de URLs, traducción de errores, decodificación, mapeo con degradación, reintentos y esperas, limitador de ritmo (fichas, freno, `Retry-After`, ritmo adaptativo), cola con prioridad y pausa, caché de imágenes y precalentamiento |
 | Presentation | Carga, paginación, deduplicación de peticiones, freno entre páginas, refresco, búsqueda con espera, filtros, y qué se conserva cuando algo falla |
 | Interfaz | Que las piezas están conectadas: lista → detalle → volver, búsqueda, vacío y filtros |
 

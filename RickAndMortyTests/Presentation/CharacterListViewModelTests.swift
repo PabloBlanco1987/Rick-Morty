@@ -169,6 +169,51 @@ struct CharacterListViewModelTests {
         #expect(!sut.isLoadingNextPage)
     }
 
+    // MARK: - Imágenes que adelantar
+
+    @Test("The images to warm are the ones of the page that just arrived, not everything loaded")
+    func publishesTheImagesOfTheLatestPage() async throws {
+        // Lo que ya se ha visto ya está en disco; lo que hay que adelantar es lo que
+        // viene. Publicar la lista entera haría que la vista volviera a recorrer
+        // ochocientas URLs por cada página nueva.
+        let (sut, _) = makeSUT(pages: [
+            1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
+            2: .success(.stub(page: 2, totalPages: 3, ids: 6...10)),
+        ])
+
+        await sut.onAppear()
+        #expect(sut.latestPageImageURLs.map(\.absoluteString) == (1...5).map(avatar))
+
+        try await scrollToTheEnd(of: sut)
+        #expect(sut.latestPageImageURLs.map(\.absoluteString) == (6...10).map(avatar))
+    }
+
+    @Test("A character without an image URL is left out of what is warmed")
+    func leavesOutCharactersWithoutImage() async {
+        let withoutImage = Character(
+            id: 1,
+            name: "No face",
+            status: .unknown,
+            species: "Human",
+            type: nil,
+            gender: .unknown,
+            origin: "?",
+            location: "?",
+            imageURL: nil,
+            episodeIDs: []
+        )
+        let page = Page(items: [withoutImage, .stub(id: 2)], currentPage: 1, totalPages: 1, totalCount: 2)
+        let (sut, _) = makeSUT(pages: [1: .success(page)])
+
+        await sut.onAppear()
+
+        #expect(sut.latestPageImageURLs.map(\.absoluteString) == [avatar(2)])
+    }
+
+    private func avatar(_ id: Int) -> String {
+        "https://rickandmortyapi.com/api/character/avatar/\(id).jpeg"
+    }
+
     // MARK: - Fallos
 
     @Test("A first page that fails takes over the screen")

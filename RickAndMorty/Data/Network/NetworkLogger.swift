@@ -61,6 +61,16 @@ struct NetworkLogger: Sendable {
         #endif
     }
 
+    // Lo que decide el limitador de ritmo: cuándo se frena y a qué ritmo se vuelve. Sale
+    // como aviso y no como depuración porque es lo que hay que mirar cuando la rejilla
+    // se queda gris: dice si el servidor nos ha parado y cuánto.
+    func logThrottle(_ message: String) {
+        #if DEBUG
+        guard isEnabled else { return }
+        Self.log.notice("\(message, privacy: .public)")
+        #endif
+    }
+
     // MARK: - Formato
 
     #if DEBUG

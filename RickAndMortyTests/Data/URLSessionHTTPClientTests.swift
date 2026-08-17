@@ -9,7 +9,10 @@ import Testing
 struct URLSessionHTTPClientTests {
     private let sut = URLSessionHTTPClient(
         base: RickAndMortyAPI.base,
-        session: StubURLProtocol.makeSession()
+        session: StubURLProtocol.makeSession(),
+        // Sin limitador: aquí se prueba la traducción de respuestas, no el ritmo, y el
+        // test del 429 no puede dejar el freno puesto en el .shared del proceso
+        limiter: .disabled
     )
 
     @Test("Decodes a success payload into the requested type")
@@ -66,6 +69,44 @@ struct URLSessionHTTPClientTests {
         await #expect(throws: AppError.rateLimited) {
             _ = try await sut.send(RickAndMortyAPI.character(id: 1), as: CharacterDTO.self)
         }
+    }
+
+    @Test("A 429 tells the shared limiter to hold, for as long as the server says")
+    func reportsRateLimitingToTheLimiter() async throws {
+        // Es lo que hace que un 429 en el JSON frene también las imágenes, y al revés:
+        // el freno es uno solo, y el Retry-After lo lee quien tiene la respuesta cruda
+        // delante, que es este cliente.
+        let limiter = RateLimiter(coolOff: .seconds(10))
+        let sut = URLSessionHTTPClient(
+            base: RickAndMortyAPI.base,
+            session: StubURLProtocol.makeSession(),
+            limiter: limiter
+        )
+        var stub = StubURLProtocol.Stub.status(429)
+        stub.headers["Retry-After"] = "3"
+        StubURLProtocol.install(stub)
+
+        _ = try? await sut.send(RickAndMortyAPI.character(id: 1), as: CharacterDTO.self)
+
+        let remaining = try #require(await limiter.remainingCoolOff)
+        #expect(remaining <= .seconds(3))
+        #expect(await limiter.currentRate == 4)
+    }
+
+    @Test("A success tells the limiter, which is how the rate recovers")
+    func reportsSuccessToTheLimiter() async throws {
+        let limiter = RateLimiter(coolOff: .zero, recoveryStreak: 1)
+        let sut = URLSessionHTTPClient(
+            base: RickAndMortyAPI.base,
+            session: StubURLProtocol.makeSession(),
+            limiter: limiter
+        )
+        await limiter.reportRateLimited(retryAfter: nil)
+        StubURLProtocol.install(.ok(JSONFixtures.rick))
+
+        _ = try await sut.send(RickAndMortyAPI.character(id: 1), as: CharacterDTO.self)
+
+        #expect(await limiter.currentRate == 5)
     }
 
     @Test("A payload of the wrong shape is a decoding failure, not a crash")

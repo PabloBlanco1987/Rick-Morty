@@ -80,41 +80,129 @@ struct DownloadQueueTests {
         await running
     }
 
-    @Test("A rate limited download puts every other download on hold, not just itself")
-    func aRateLimitHoldsTheWholeQueue() async throws {
-        // Es lo que separa recuperarse de hundirse más: si cada imagen reintentase su
-        // propio 429, el reintento repetiría la ráfaga que se ganó el límite y ya no se
-        // saldría de ahí. El freno es compartido porque el límite también lo es.
-        let sut = DownloadQueue(limit: 4, coolOff: .milliseconds(80))
+    @Test("A request cancelled while queued fails as cancelled and never runs its work")
+    func aCancelledRequestDoesNotRunItsWork() async throws {
+        let gate = AsyncGate()
+        let sut = DownloadQueue(limit: 1)
+        let probe = ConcurrencyProbe()
 
-        await #expect(throws: AppError.rateLimited) {
-            _ = try await sut.enqueue { () async throws(AppError) -> Data in throw .rateLimited }
+        async let running: Void = enqueue(0, on: sut, recordingInto: OrderRecorder(), blockingOn: gate)
+        await gate.waitUntilReached()
+
+        let queued = Task {
+            try await sut.enqueue { () async throws(AppError) -> Data in
+                await probe.enter()
+                return Data()
+            }
         }
+        try await waitUntilWaiting(1, in: sut)
+        queued.cancel()
 
-        #expect(await sut.isCoolingOff)
+        await #expect(throws: AppError.cancelled) { try await queued.value }
+        #expect(await probe.peak == 0)
+        await gate.open()
+        await running
     }
 
-    @Test("The hold lifts on its own, and a success clears the record")
-    func theHoldLiftsOnItsOwn() async throws {
-        let sut = DownloadQueue(limit: 4, coolOff: .milliseconds(50))
-        _ = try? await sut.enqueue { () async throws(AppError) -> Data in throw .rateLimited }
+    // MARK: - Prioridad
 
-        // La siguiente no falla: espera a que pase el freno y entra
-        let data = try await sut.enqueue { Data("ok".utf8) }
+    @Test("A prefetch only gets a slot when nothing visible is waiting")
+    func prefetchGoesAfterEverythingVisible() async throws {
+        // El precalentamiento de la página siguiente no puede quitarle el hueco a una
+        // celda que se está mirando, aunque haya llegado antes: se encola el prefetch
+        // primero y aun así las visibles pasan por delante, y entre ellas sigue el LIFO.
+        let gate = AsyncGate()
+        let order = OrderRecorder()
+        let sut = DownloadQueue(limit: 1)
 
-        #expect(data == Data("ok".utf8))
-        #expect(await sut.isCoolingOff == false)
+        async let running: Void = enqueue(0, on: sut, recordingInto: order, blockingOn: gate)
+        await gate.waitUntilReached()
+
+        async let prefetch: Void = enqueue(1, priority: .prefetch, on: sut, recordingInto: order)
+        try await waitUntilWaiting(1, in: sut)
+        async let firstVisible: Void = enqueue(2, on: sut, recordingInto: order)
+        try await waitUntilWaiting(2, in: sut)
+        async let secondVisible: Void = enqueue(3, on: sut, recordingInto: order)
+        try await waitUntilWaiting(3, in: sut)
+
+        await gate.open()
+        _ = await (running, prefetch, firstVisible, secondVisible)
+
+        #expect(await order.ids == [0, 3, 2, 1])
+    }
+
+    // MARK: - Pausa
+
+    @Test("While paused no slot is handed out, and resuming hands them out again")
+    func pauseHoldsSlotsUntilResumed() async throws {
+        // Es lo que retiene la red durante un fling: la cola sigue aceptando peticiones,
+        // pero no las suelta hasta que el scroll para
+        let sut = DownloadQueue(limit: 2)
+        let order = OrderRecorder()
+
+        await sut.setPaused(true)
+        async let held: Void = enqueue(1, on: sut, recordingInto: order)
+        try await waitUntilWaiting(1, in: sut)
+        #expect(await order.ids.isEmpty)
+
+        await sut.setPaused(false)
+        await held
+
+        #expect(await order.ids == [1])
+        #expect(await sut.waitingCount == 0)
+    }
+
+    @Test("A slot freed while paused is not handed over to the next in line")
+    func pauseDoesNotHandOverFreedSlots() async throws {
+        // Sin esto, pausar solo frenaría las peticiones nuevas: las que ya esperaban
+        // irían saliendo una a una según se liberase cada hueco
+        let gate = AsyncGate()
+        let order = OrderRecorder()
+        let sut = DownloadQueue(limit: 1)
+
+        async let running: Void = enqueue(0, on: sut, recordingInto: order, blockingOn: gate)
+        await gate.waitUntilReached()
+        async let queued: Void = enqueue(1, on: sut, recordingInto: order)
+        try await waitUntilWaiting(1, in: sut)
+
+        await sut.setPaused(true)
+        await gate.open()
+        await running
+
+        // El hueco se ha liberado y el que esperaba sigue esperando
+        #expect(await order.ids == [0])
+        #expect(await sut.waitingCount == 1)
+
+        await sut.setPaused(false)
+        await queued
+        #expect(await order.ids == [0, 1])
+    }
+
+    @Test("A pause that nobody lifts expires on its own")
+    func pauseExpiresOnItsOwn() async throws {
+        // Si la vista se va en mitad de un fling y no llega a reanudar, la cola no puede
+        // quedarse muerta con las imágenes de toda la app dentro. Se espera de verdad,
+        // pero solo a que caduque: dormir de más no puede romperlo.
+        let sut = DownloadQueue(limit: 1, pauseTimeout: .milliseconds(50))
+        let order = OrderRecorder()
+
+        await sut.setPaused(true)
+        await enqueue(1, on: sut, recordingInto: order)
+
+        #expect(await order.ids == [1])
+        #expect(await sut.isPaused == false)
     }
 
     // MARK: - Helpers
 
     private func enqueue(
         _ id: Int,
+        priority: DownloadQueue.Priority = .visible,
         on queue: DownloadQueue,
         recordingInto order: OrderRecorder,
         blockingOn gate: AsyncGate? = nil
     ) async {
-        _ = try? await queue.enqueue {
+        _ = try? await queue.enqueue(priority: priority) {
             await order.record(id)
             if let gate { await gate.wait() }
             return Data()

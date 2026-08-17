@@ -18,18 +18,33 @@ import Foundation
 // Hace falta porque no se puede confiar en que la vista se destruya: LazyVGrid crea
 // las celdas según hacen falta pero no las tira al pasar de largo, así que sus tareas
 // siguen vivas y esperando. Ordenar la cola es lo único que queda.
+//
+// Aquí solo se reparten huecos. Cuántas peticiones por segundo pueden salir, y el freno
+// cuando el servidor contesta 429, viven en RateLimiter: ese límite lo comparten las
+// imágenes con el JSON, así que no puede estar dentro de la cola de una de las dos.
 actor DownloadQueue {
     typealias Work = () async throws(AppError) -> Data
 
+    // Quién pide el hueco. Una celda que se está viendo va delante de todo; un
+    // precalentamiento —imágenes de la página que acaba de llegar y aún no se ve— solo
+    // entra cuando no espera nada visible.
+    enum Priority: Sendable {
+        case visible
+        case prefetch
+    }
+
     private let limit: Int
-    private let coolOff: Duration
+    private let pauseTimeout: Duration
     private var running = 0
     private var waiting: [Ticket] = []
     private var lastTicketID = 0
 
-    // Hasta cuándo hay que dejar de pedir, y cuántos 429 seguidos llevamos
-    private var coolOffUntil: ContinuousClock.Instant?
-    private var consecutiveRateLimits = 0
+    // En pausa no se conceden huecos nuevos. Lo pone la vista mientras el scroll va
+    // lanzado —ver CharacterListView— y lo quita cuando para. Y caduca solo: si la vista
+    // se destruye en mitad de un fling y no llega a quitarlo, la cola no puede quedarse
+    // muerta con las imágenes de toda la app dentro.
+    private(set) var isPaused = false
+    private var pauseGeneration = 0
 
     private struct Ticket {
         let id: Int
@@ -41,63 +56,61 @@ actor DownloadQueue {
     // internal para que los tests puedan comprobar que la cola se vacía en vez de
     // acumular esperas que no van a ninguna parte
     var waitingCount: Int { waiting.count }
-    var isCoolingOff: Bool { remainingCoolOff != nil }
 
-    init(limit: Int = 4, coolOff: Duration = .seconds(2)) {
+    init(limit: Int = 4, pauseTimeout: Duration = .seconds(1.5)) {
         self.limit = max(1, limit)
-        self.coolOff = coolOff
+        self.pauseTimeout = pauseTimeout
     }
 
-    func enqueue(_ work: Work) async throws(AppError) -> Data {
-        // Cuando el servidor contesta 429 lo que hay que hacer no es reintentar: es
-        // dejar de pedir. Si cada imagen reintenta por su cuenta, el reintento
-        // multiplica exactamente la ráfaga que se ganó el 429 y ya no se sale de ahí:
-        // más peticiones, más 429, más reintentos. El freno es compartido a propósito,
-        // porque el límite también lo es.
-        try await waitOutCoolOff()
+    func enqueue(priority: Priority = .visible, _ work: Work) async throws(AppError) -> Data {
+        let granted = await acquire(priority)
+        // A quien le cancelaron la espera nunca llegó a ocupar un hueco: ni se ejecuta
+        // su trabajo ni tiene nada que devolver.
+        guard granted else { throw .cancelled }
+        defer { release() }
 
-        let granted = await acquire()
-        // Solo devuelve el hueco quien lo cogió. A quien le cancelaron la espera nunca
-        // llegó a ocupar uno.
-        defer { if granted { release() } }
-
-        do {
-            let data = try await work()
-            consecutiveRateLimits = 0
-            return data
-        } catch {
-            if error == .rateLimited { startCoolOff() }
-            throw error
-        }
+        return try await work()
     }
 
-    private func waitOutCoolOff() async throws(AppError) {
-        while let remaining = remainingCoolOff {
-            do {
-                try await Task.sleep(for: remaining)
-            } catch {
-                throw .cancelled
+    // MARK: - Pausa
+
+    func setPaused(_ paused: Bool) {
+        guard paused != isPaused else { return }
+        isPaused = paused
+        pauseGeneration += 1
+
+        if paused {
+            let generation = pauseGeneration
+            // La tarea hereda el aislamiento del actor: dormir no lo bloquea, y al
+            // despertar sigue dentro, así que expirePause se llama sin salto
+            Task {
+                try? await Task.sleep(for: pauseTimeout)
+                expirePause(generation)
             }
+        } else {
+            grantWhilePossible()
         }
     }
 
-    private var remainingCoolOff: Duration? {
-        guard let coolOffUntil else { return nil }
-        let remaining = ContinuousClock.now.duration(to: coolOffUntil)
-        return remaining > .zero ? remaining : nil
+    // La generación evita que un temporizador viejo levante una pausa nueva: pausar,
+    // reanudar y volver a pausar deja un temporizador de la primera que ya no manda.
+    private func expirePause(_ generation: Int) {
+        guard isPaused, pauseGeneration == generation else { return }
+        isPaused = false
+        grantWhilePossible()
     }
 
-    // Cada 429 seguido dobla la espera, hasta ocho veces la base. Si el servidor sigue
-    // diciendo que no, insistir al mismo ritmo es alargar el castigo; un acierto la
-    // devuelve al principio.
-    private func startCoolOff() {
-        consecutiveRateLimits += 1
-        let factor = 1 << min(consecutiveRateLimits - 1, 3)
-        coolOffUntil = ContinuousClock.now.advanced(by: coolOff * factor)
+    private func grantWhilePossible() {
+        while running < limit, let ticket = waiting.popLast() {
+            running += 1
+            ticket.continuation.resume(returning: true)
+        }
     }
 
-    private func acquire() async -> Bool {
-        if running < limit {
+    // MARK: - Huecos
+
+    private func acquire(_ priority: Priority) async -> Bool {
+        if !isPaused, running < limit {
             running += 1
             return true
         }
@@ -107,7 +120,16 @@ actor DownloadQueue {
 
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                waiting.append(Ticket(id: id, continuation: continuation))
+                let ticket = Ticket(id: id, continuation: continuation)
+                switch priority {
+                case .visible:
+                    // Al final, que es de donde sale el siguiente: LIFO entre lo visible
+                    waiting.append(ticket)
+                case .prefetch:
+                    // Al principio, que es de donde no sale nada mientras haya otra
+                    // cosa: solo entra cuando no espera nada visible
+                    waiting.insert(ticket, at: 0)
+                }
             }
         } onCancel: {
             // Sin esto, a una celda cancelada mientras esperaba no la despierta nadie:
@@ -118,7 +140,9 @@ actor DownloadQueue {
     }
 
     private func release() {
-        guard let ticket = waiting.popLast() else {
+        // En pausa el hueco se devuelve y no se traspasa: es la única forma de que dejen
+        // de salir peticiones. Al reanudar, grantWhilePossible los vuelve a repartir.
+        guard !isPaused, let ticket = waiting.popLast() else {
             running -= 1
             return
         }

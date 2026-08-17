@@ -21,6 +21,14 @@ final class CharacterListViewModel {
     // scroll. El fallo se cuenta en el pie, con su botón de reintentar.
     private(set) var nextPageError: AppError?
 
+    // Las imágenes de la última página que ha llegado. La vista las precalienta mientras
+    // el usuario todavía está leyendo la anterior, para que cuando baje hasta ellas las
+    // celdas aparezcan ya con su imagen. Aquí solo se dice cuáles son: qué se hace con
+    // ellas —y con qué caché— es cosa de la vista, que es quien tiene la caché a mano.
+    // Son las de la última página y no todas las cargadas a propósito: lo que ya se ha
+    // visto ya está en disco, y lo que hay que adelantar es lo que viene.
+    private(set) var latestPageImageURLs: [URL] = []
+
     // Los criterios activos. Es de solo lectura desde fuera porque cambiarlos no es
     // asignar un valor: es tirar la lista, reiniciar la paginación y lanzar una
     // petición. Todo eso pasa por los accesos de abajo, que son los que la vista usa.
@@ -222,6 +230,7 @@ final class CharacterListViewModel {
             lastPageArrivedAt = .now
             loadedIDs = Set(page.items.map(\.id))
             nextPageError = nil
+            latestPageImageURLs = page.items.compactMap(\.imageURL)
             apply(page.items)
         } catch {
             // Cancelar no es fallar: si el usuario se ha ido de la pantalla no hay
@@ -313,6 +322,7 @@ final class CharacterListViewModel {
             // Set y lo cierra.
             let fresh = result.items.filter { loadedIDs.insert($0.id).inserted }
             lastPage = result
+            latestPageImageURLs = fresh.compactMap(\.imageURL)
             apply((state.value ?? []) + fresh)
         } catch {
             guard error != .cancelled,

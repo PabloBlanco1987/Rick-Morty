@@ -8,15 +8,20 @@ struct URLSessionHTTPClient: HTTPClient {
     private let base: URLComponents
     private let session: URLSession
     private let logger: NetworkLogger
+    private let limiter: RateLimiter
 
     init(
         base: URLComponents = RickAndMortyAPI.base,
         session: URLSession = .rickAndMorty,
-        logger: NetworkLogger = .shared
+        logger: NetworkLogger = .shared,
+        // El mismo que usa la caché de imágenes: el cupo del servidor es uno para JSON
+        // e imágenes, así que el freno tiene que ser el mismo objeto
+        limiter: RateLimiter = .shared
     ) {
         self.base = base
         self.session = session
         self.logger = logger
+        self.limiter = limiter
     }
 
     func send<Response: Decodable & Sendable>(
@@ -26,6 +31,10 @@ struct URLSessionHTTPClient: HTTPClient {
         guard let request = endpoint.urlRequest(base: base) else {
             throw .unknown
         }
+
+        // Antes de trazar y de arrancar el reloj: la espera por una ficha no es tiempo
+        // de red, y en la traza lo que interesa es lo que tarda el servidor
+        try await limiter.acquire()
 
         logger.logRequest(request)
         let start = ContinuousClock.now
@@ -55,6 +64,14 @@ struct URLSessionHTTPClient: HTTPClient {
         // Se traza antes de mirar el código de estado, para que un 404 o un 429 salgan
         // por consola tal cual llegaron, sin pasar por la traducción a AppError
         logger.logResponse(http, for: request, duration: elapsed)
+
+        // El limitador se entera aquí y no en la traducción a AppError porque el
+        // Retry-After va en la respuesta cruda, y esta es la única que lo tiene delante
+        if http.statusCode == 429 {
+            await limiter.reportRateLimited(retryAfter: http.retryAfter)
+        } else if (200..<300).contains(http.statusCode) {
+            await limiter.reportSuccess()
+        }
 
         if let error = AppError(statusCode: http.statusCode) { throw error }
 

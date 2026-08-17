@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 // El listado de personajes.
@@ -9,8 +10,22 @@ struct CharacterListView: View {
     @Bindable var viewModel: CharacterListViewModel
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    // La misma caché que usan las celdas: desde aquí se le adelantan las imágenes de la
+    // página que acaba de llegar y se le retiene la red mientras el scroll va lanzado
+    @Environment(\.imageCache) private var imageCache
 
     @State private var isShowingFilters = false
+
+    // A partir de qué velocidad una deceleración cuenta como fling y no como un flick
+    // para seguir leyendo. Un flick suave decelera durante un segundo mientras el
+    // usuario ya está mirando las celdas nuevas: pausar ahí sería dejarlas grises justo
+    // cuando las mira. Un fling de verdad pasa por dos o tres pantallas que nadie ve.
+    //
+    // La unidad de `ScrollPhaseChangeContext.velocity` no está documentada; medida en el
+    // simulador es puntos por milisegundo, igual que en UIKit: un fling fuerte sale a
+    // ~5,5 y un flick de lectura no llega a 1. Dos separa los dos gestos con margen. La
+    // traza de abajo se queda para volver a mirarlo si un día cambia.
+    private static let flingVelocity: CGFloat = 2
 
     var body: some View {
         content
@@ -86,7 +101,46 @@ struct CharacterListView: View {
         }
         .contentMargins(16, for: .scrollContent)
         .refreshable { await viewModel.refresh() }
+        // Precalienta la página que acaba de llegar mientras el usuario lee la anterior.
+        // Con id: cuando llega otra página se cancela el calentamiento de la anterior y
+        // arranca el suyo, así que un fling que encadena páginas solo calienta la última,
+        // que es hacia donde va el usuario. Un cambio de filtro cambia las URLs y cancela
+        // igual. Lo que ya está en disco no cuesta nada.
+        .task(id: viewModel.latestPageImageURLs) {
+            await imageCache.warm(viewModel.latestPageImageURLs)
+        }
+        // Mientras el scroll va lanzado no sale nada a la red: cada petición de un fling
+        // es cupo gastado en una celda que ya no está cuando llega, y es el cupo que le
+        // falta a la pantalla donde se aterriza. Lo que ya está en memoria o en disco
+        // sigue apareciendo. Es el scrollViewDidEndDecelerating de toda la vida.
+        .onScrollPhaseChange { _, phase, context in
+            setNetworkPaused(isFlinging(phase, context))
+        }
+        // Si la rejilla se va en mitad de un fling —un filtro que la sustituye por el
+        // esqueleto— nadie llegaría a levantar la pausa. La cola además la caduca sola;
+        // esto es el cinturón y aquello los tirantes.
+        .onDisappear { setNetworkPaused(false) }
     }
+
+    private func isFlinging(_ phase: ScrollPhase, _ context: ScrollPhaseChangeContext) -> Bool {
+        guard phase == .decelerating, let velocity = context.velocity else { return false }
+        let speed = abs(velocity.dy)
+        #if DEBUG
+        Self.scrollLog.debug("Decelerating at \(speed, privacy: .public)")
+        #endif
+        return speed > Self.flingVelocity
+    }
+
+    private func setNetworkPaused(_ paused: Bool) {
+        Task { await imageCache.setNetworkPaused(paused) }
+    }
+
+    #if DEBUG
+    private static let scrollLog = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "RickAndMorty",
+        category: "Scroll"
+    )
+    #endif
 
     @ViewBuilder
     private var footer: some View {
