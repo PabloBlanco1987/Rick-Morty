@@ -34,6 +34,12 @@ struct CharacterListView: View {
             // buscar entre las veinte celdas que ha traído la primera página sería
             // buscar en el 2% de los personajes y decirle al usuario que no hay más.
             .searchable(text: $viewModel.searchText, prompt: .characterListSearchPrompt)
+            // Por lo mismo que en el campo de especie: la API compara por texto, así que
+            // el corrector solo cambia lo que el usuario ha escrito a propósito —"squanchy"
+            // no es una palabra— y la mayúscula automática no aporta nada a una búsqueda
+            // que no distingue mayúsculas
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -241,9 +247,7 @@ struct CharacterListView: View {
         } description: {
             Text(error.message)
         } actions: {
-            Button(.characterListRetryButton) {
-                Task { await viewModel.retry() }
-            }
+            Button(.characterListRetryButton) { viewModel.retry() }
             .buttonStyle(.borderedProminent)
         }
     }

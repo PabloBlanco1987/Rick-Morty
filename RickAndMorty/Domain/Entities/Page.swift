@@ -8,12 +8,11 @@ struct Page<Item: Hashable & Sendable>: Hashable, Sendable {
     let items: [Item]
     let currentPage: Int
     let totalPages: Int
-    let totalCount: Int
 
     var hasNextPage: Bool { currentPage < totalPages }
     var nextPage: Int? { hasNextPage ? currentPage + 1 : nil }
 
     static func empty(page: Int = 1) -> Page {
-        Page(items: [], currentPage: page, totalPages: 0, totalCount: 0)
+        Page(items: [], currentPage: page, totalPages: 0)
     }
 }

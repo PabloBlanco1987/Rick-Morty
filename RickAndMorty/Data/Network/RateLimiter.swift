@@ -39,7 +39,7 @@ actor RateLimiter {
     private let burst: Double
     private let coolOff: Duration
     private let recoveryStreak: Int
-    private let logger: NetworkLogger
+    private let logger = NetworkLogger.shared
 
     // Lo que dura como mucho un Retry-After. Un valor disparatado del servidor no puede
     // dejar la app muda medio minuto sin más razón que un encabezado.
@@ -78,15 +78,13 @@ actor RateLimiter {
         burst: Double = 8,
         minRate: Double = 2,
         coolOff: Duration = .seconds(2),
-        recoveryStreak: Int = 30,
-        logger: NetworkLogger = .shared
+        recoveryStreak: Int = 30
     ) {
         self.maxRate = maxRate
         self.minRate = min(minRate, maxRate)
         self.burst = max(1, burst)
         self.coolOff = coolOff
         self.recoveryStreak = max(1, recoveryStreak)
-        self.logger = logger
         self.rate = maxRate
         self.tokens = self.burst
         self.lastRefill = .now

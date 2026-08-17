@@ -13,9 +13,9 @@ enum CharacterMapper {
             species: dto.species,
             type: dto.type.isEmpty ? nil : dto.type,
             gender: Character.Gender(rawValue: dto.gender.lowercased()) ?? .unknown,
-            origin: dto.origin.name,
-            location: dto.location.name,
-            imageURL: URL(string: dto.image),
+            origin: placeName(dto.origin.name),
+            location: placeName(dto.location.name),
+            imageURL: imageURL(from: dto.image),
             episodeIDs: episodeIDs(from: dto.episode)
         )
     }
@@ -24,9 +24,24 @@ enum CharacterMapper {
         Page(
             items: dto.results.map(map),
             currentPage: page,
-            totalPages: dto.info.pages,
-            totalCount: dto.info.count
+            totalPages: dto.info.pages
         )
+    }
+
+    // "unknown" es el centinela de la API para un lugar que no sabe —viene así, en
+    // minúscula y sin url—; en el dominio la ausencia es nil, no un texto que cada
+    // pantalla tendría que reconocer y traducir por su cuenta
+    private static func placeName(_ raw: String) -> String? {
+        raw == "unknown" ? nil : raw
+    }
+
+    // Solo vale una URL absoluta con esquema y host. Desde iOS 17, URL(string:) acepta
+    // casi cualquier texto —"not a url" pasa como referencia relativa y solo "" da nil—,
+    // así que sin esta comprobación la promesa de "nil si no es una URL válida" no la
+    // cumplía nadie, y el fallo aparecía después, en la descarga, en vez de aquí.
+    private static func imageURL(from raw: String) -> URL? {
+        guard let url = URL(string: raw), url.scheme != nil, url.host() != nil else { return nil }
+        return url
     }
 
     // La API devuelve enlaces a los episodios y el dominio quiere ids. Lo que no

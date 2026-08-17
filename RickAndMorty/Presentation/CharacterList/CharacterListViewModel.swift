@@ -49,6 +49,13 @@ final class CharacterListViewModel {
     // Los ids ya cargados, para no meter el mismo personaje dos veces
     private var loadedIDs: Set<Character.ID> = []
 
+    // El criterio con el que se cargó lo que hay en pantalla, ya recortado. Es lo que
+    // evita recargar lo mismo: teclear una letra y borrarla dentro de la espera, o
+    // cancelar la búsqueda justo después de escribir, vuelven al criterio que ya está
+    // pintado, y volver a pedirlo era tirar la lista, enseñar el esqueleto, perder el
+    // scroll y gastar una petición para acabar exactamente donde se estaba.
+    private var loadedFilter: CharacterFilter?
+
     // Los ids de las últimas celdas cargadas: al aparecer cualquiera de ellas se pide
     // la página siguiente. Es un conjunto y no un índice porque un scroll rápido
     // puede saltarse el .onAppear de una celda concreta; con que aparezca una de las
@@ -182,13 +189,15 @@ final class CharacterListViewModel {
     // vuelve a la página uno y se cancela lo que hubiera en vuelo, porque una respuesta
     // de la búsqueda anterior que llegue tarde no puede acabar pintada bajo un filtro
     // que ya no es el que está puesto.
+    //
+    // Pero se tira cuando toca pedir, no al teclear: mientras dura la espera la lista de
+    // antes sigue en pantalla, y si al final de la espera el criterio ha vuelto a ser el
+    // que ya está pintado —una letra que se escribe y se borra, una búsqueda que se
+    // cancela— no hay nada que recargar y todo se queda como está. Una página que la
+    // lista vieja pida en ese rato no hace daño: si el criterio ha cambiado, aterriza
+    // sobre otro filtro y se descarta; si ha vuelto a ser el mismo, es una página buena.
     private func reload(afterTyping: Bool) {
         searchTask?.cancel()
-        pagingTask?.cancel()
-        pagingTask = nil
-        isLoadingNextPage = false
-        nextPageError = nil
-        lastPage = nil
 
         searchTask = Task { [weak self] in
             guard let self else { return }
@@ -200,7 +209,24 @@ final class CharacterListViewModel {
                 guard !Task.isCancelled else { return }
             }
 
+            guard !isShowingList(for: filter) else { return }
+
+            pagingTask?.cancel()
+            pagingTask = nil
+            isLoadingNextPage = false
+            nextPageError = nil
+            lastPage = nil
             await loadFirstPage(showingPlaceholder: true)
+        }
+    }
+
+    // Si lo que hay en pantalla —lista o vacío, que las dos son un resultado— ya es la
+    // respuesta a este criterio
+    private func isShowingList(for filter: CharacterFilter) -> Bool {
+        guard filter.normalized == loadedFilter else { return false }
+        switch state {
+        case .loaded, .empty: return true
+        case .idle, .loading, .failed: return false
         }
     }
 
@@ -214,8 +240,12 @@ final class CharacterListViewModel {
         await loadFirstPage(showingPlaceholder: true)
     }
 
-    func retry() async {
-        await loadFirstPage(showingPlaceholder: true)
+    // Reintentar desde la pantalla de error es volver a empezar la lista con el mismo
+    // criterio, y por eso pasa por el mismo sitio que un cambio de filtro: la tarea la
+    // crea y la posee el view model, igual que las demás, en vez de un Task suelto en el
+    // botón que nadie podría cancelar
+    func retry() {
+        reload(afterTyping: false)
     }
 
     // Pull to refresh. No pone .loading porque el propio control de refresco ya es el
@@ -257,6 +287,7 @@ final class CharacterListViewModel {
             lastPage = page
             lastPageArrivedAt = .now
             loadedIDs = Set(page.items.map(\.id))
+            loadedFilter = requested.normalized
             nextPageError = nil
             latestPageImageURLs = page.items.compactMap(\.imageURL)
             apply(page.items)

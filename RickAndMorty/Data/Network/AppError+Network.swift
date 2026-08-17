@@ -8,8 +8,13 @@ import Foundation
 extension AppError {
     init(_ error: URLError) {
         self = switch error.code {
+        // cannotFindHost y dnsLookupFailed son la misma cosa vista desde dos sitios: sin
+        // red no hay quien resuelva el nombre. cannotConnectToHost entra también aunque
+        // pueda ser el servidor caído con la red bien: para el usuario la instrucción es
+        // la misma —comprobar la conexión y volver a intentarlo—, y reintentar solo
+        // contra un host que no contesta tampoco arregla nada.
         case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed,
-             .internationalRoamingOff, .cannotConnectToHost, .cannotFindHost:
+             .internationalRoamingOff, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
             .offline
         case .timedOut:
             .timeout

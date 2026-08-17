@@ -19,7 +19,10 @@ struct CharacterFiltersView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(.characterFiltersStatusSectionTitle) {
+                // Los dos selectores van juntos y sin cabecera de sección: la fila ya
+                // dice "Status" y "Gender" —es la etiqueta del Picker, que VoiceOver
+                // necesita—, y repetirlo encima como título era leer lo mismo dos veces
+                Section {
                     Picker(.characterFiltersStatusPickerTitle, selection: $viewModel.statusFilter) {
                         // "Any" es un caso más de la selección y no un botón de quitar
                         // aparte: quitar un filtro es elegir no filtrar por él, y así se
@@ -33,9 +36,7 @@ struct CharacterFiltersView: View {
                     // lleva dentro el valor elegido ("Status, Any"), así que buscarlo por
                     // etiqueta sería buscar algo que cambia solo
                     .accessibilityIdentifier("filter-status")
-                }
 
-                Section(.characterFiltersGenderSectionTitle) {
                     Picker(.characterFiltersGenderPickerTitle, selection: $viewModel.genderFilter) {
                         Text(.characterFiltersGenderAny).tag(Character.Gender?.none)
                         ForEach(Character.Gender.allCases, id: \.self) { gender in

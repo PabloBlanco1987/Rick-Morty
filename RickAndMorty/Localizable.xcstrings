@@ -337,6 +337,18 @@
         }
       }
     },
+    "characterDetail.unknownPlace" : {
+      "extractionState" : "manual",
+      "comment" : "Shown as the origin or location of a character when the API does not know it.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown"
+          }
+        }
+      }
+    },
     "characterFilters.clearButton" : {
       "extractionState" : "manual",
       "comment" : "A button that clears all the filters.",
@@ -375,18 +387,6 @@
     "characterFilters.genderPicker.title" : {
       "extractionState" : "manual",
       "comment" : "A label for a picker that lets the user select a character's gender.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gender"
-          }
-        }
-      }
-    },
-    "characterFilters.genderSection.title" : {
-      "extractionState" : "manual",
-      "comment" : "A heading for the gender filter section.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -443,17 +443,6 @@
       }
     },
     "characterFilters.statusPicker.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Status"
-          }
-        }
-      }
-    },
-    "characterFilters.statusSection.title" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {

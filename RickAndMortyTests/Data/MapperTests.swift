@@ -56,7 +56,6 @@ struct CharacterMapperTests {
         #expect(page.items.count == 2)
         #expect(page.currentPage == 1)
         #expect(page.totalPages == 42)
-        #expect(page.totalCount == 826)
         #expect(page.hasNextPage)
     }
 }

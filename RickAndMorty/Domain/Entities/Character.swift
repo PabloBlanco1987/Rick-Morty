@@ -11,8 +11,10 @@ struct Character: Identifiable, Hashable, Sendable {
     // La API manda "" cuando no hay subespecie; aquí es nil
     let type: String?
     let gender: Gender
-    let origin: String
-    let location: String
+    // La API manda el literal "unknown" cuando no lo sabe; aquí es nil, igual que el
+    // type vacío: los centinelas se limpian en el mapper y no en cada sitio que los pinta
+    let origin: String?
+    let location: String?
     // nil si lo que llega no es una URL válida. La UI tiene placeholder,
     // así que se ve peor pero no perdemos el personaje.
     let imageURL: URL?

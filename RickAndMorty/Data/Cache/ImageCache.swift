@@ -392,106 +392,34 @@ actor ImageCache {
         _ loader: @escaping DataLoader,
         policy: RetryPolicy = .default
     ) -> DataLoader {
-        // El closure solo delega: la inferencia de throws tipado dentro de un literal
-        // se queda en `any Error`, así que el bucle vive en una función con firma
-        // explícita y aquí no hay más que el reenvío
+        // Las firmas van escritas enteras porque la inferencia de throws tipado dentro
+        // de un closure literal se queda en `any Error`
         { (url: URL) async throws(AppError) -> Data in
-            try await loadRetrying(url, with: loader, policy: policy)
+            // El 429 se queda fuera a propósito, y es la diferencia entre salir del
+            // agujero y cavarlo más hondo: de él se encarga el freno compartido de
+            // RateLimiter. Reintentarlo aquí sería que cada una de las imágenes en
+            // vuelo repitiera por su cuenta la ráfaga que nos ganó el límite.
+            try await policy.attempt(
+                shouldRetry: { $0.isRetryable && $0 != .rateLimited },
+                { () async throws(AppError) -> Data in try await loader(url) }
+            )
         }
-    }
-
-    private static func loadRetrying(
-        _ url: URL,
-        with loader: DataLoader,
-        policy: RetryPolicy
-    ) async throws(AppError) -> Data {
-        var lastError = AppError.unknown
-
-        for attempt in 1...max(1, policy.maxAttempts) {
-            if attempt > 1 {
-                do {
-                    try await Task.sleep(for: policy.delay(beforeAttempt: attempt, after: lastError))
-                } catch {
-                    // Si sleep lanza es porque han cancelado: la celda ya no está, así
-                    // que no se gastan los intentos que quedan
-                    throw .cancelled
-                }
-            }
-
-            do {
-                return try await loader(url)
-            } catch {
-                // El 429 se queda fuera a propósito, y es la diferencia entre salir del
-                // agujero y cavarlo más hondo: de él se encarga el freno compartido de
-                // RateLimiter. Reintentarlo aquí sería que cada una de las imágenes en
-                // vuelo repitiera por su cuenta la ráfaga que nos ganó el límite.
-                guard error.isRetryable, error != .rateLimited else { throw error }
-                lastError = error
-            }
-        }
-
-        throw lastError
     }
 
     // Descarga directa, sin pasar por HTTPClient: ahí lo que llega es JSON que hay que
-    // decodificar, y aquí lo que hace falta son los bytes tal cual. Lo que sí se
-    // comparte es la traducción del fallo, que vive en AppError+Network, y la traza,
-    // que es el mismo NetworkLogger que usa el cliente HTTP.
+    // decodificar, y aquí lo que hace falta son los bytes tal cual. Todo lo demás —la
+    // ficha del limitador, la traza, el transporte y el código de estado— es el mismo
+    // URLSession.perform que usa el cliente HTTP, escrito una vez para los dos.
     //
-    // Solo se traza lo que sale a la red de verdad. Lo que se resuelve en memoria o en
-    // disco no llega hasta aquí, y así el log dice qué se está pidiendo fuera y no
-    // cuántas celdas se han pintado.
-    //
-    // Y por lo mismo, es aquí donde se pide permiso al limitador: una ficha por petición
-    // que sale, y ni una por las que se resuelven antes. Como se llama desde dentro de
-    // la cola, el orden es hueco (LIFO) primero y ficha después: la prioridad se aplica
-    // al recurso escaso, que cuando el servidor aprieta es la ficha.
+    // Solo se traza y se gasta ficha en lo que sale a la red de verdad. Lo que se
+    // resuelve en memoria o en disco no llega hasta aquí, y así el log dice qué se está
+    // pidiendo fuera y no cuántas celdas se han pintado. Como se llama desde dentro de la
+    // cola, el orden es hueco (LIFO) primero y ficha después: la prioridad se aplica al
+    // recurso escaso, que cuando el servidor aprieta es la ficha.
     static func download(_ url: URL, through limiter: RateLimiter) async throws(AppError) -> Data {
-        try await limiter.acquire()
-
         // Petición explícita en vez de data(from:) —que monta esta misma por dentro—
         // para poder trazarla
-        let request = URLRequest(url: url)
-        let logger = NetworkLogger.shared
-        logger.logRequest(request)
-        let start = ContinuousClock.now
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await imageSession.data(for: request)
-        } catch let error as URLError {
-            logger.logFailure(error, for: request, duration: start.duration(to: .now))
-            throw AppError(error)
-        } catch let error where error is CancellationError {
-            logger.logFailure(error, for: request, duration: start.duration(to: .now))
-            throw .cancelled
-        } catch {
-            logger.logFailure(error, for: request, duration: start.duration(to: .now))
-            throw .unknown
-        }
-
-        let elapsed = start.duration(to: .now)
-
-        guard let http = response as? HTTPURLResponse else {
-            logger.logFailure(AppError.unknown, for: request, duration: elapsed)
-            throw .unknown
-        }
-
-        logger.logResponse(http, for: request, duration: elapsed)
-
-        // El limitador se entera aquí y no en la traducción a AppError porque el
-        // Retry-After va en la respuesta cruda, y esta es la única que lo tiene delante.
-        // Y se le dice cuándo salió la petición: es lo que le deja distinguir un 429 de
-        // la ráfaga que ya frenó de uno nuevo.
-        if http.statusCode == 429 {
-            await limiter.reportRateLimited(retryAfter: http.retryAfter, issuedAt: start)
-        } else if (200..<300).contains(http.statusCode) {
-            await limiter.reportSuccess(issuedAt: start)
-        }
-
-        if let error = AppError(statusCode: http.statusCode) { throw error }
-        return data
+        try await imageSession.perform(URLRequest(url: url), through: limiter).data
     }
 
     private static let imageSession: URLSession = {

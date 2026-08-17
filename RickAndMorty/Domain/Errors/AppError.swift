@@ -47,10 +47,12 @@ enum AppError: Error, Equatable, Sendable {
     // Cuánto conviene esperar antes de repetir. Un 500 suele ser un tropiezo de
     // milisegundos; un "vas demasiado rápido" no se arregla insistiendo enseguida, que
     // es justo lo que alarga el castigo.
+    // Exhaustivo a propósito, igual que isRetryable: un caso nuevo tiene que decidir
+    // aquí cuánta paciencia merece, no heredar la de los demás sin que nadie lo mire
     var retryPatience: RetryPatience {
         switch self {
         case .rateLimited: .backOff
-        default: .brief
+        case .offline, .timeout, .notFound, .server, .decoding, .cancelled, .unknown: .brief
         }
     }
 

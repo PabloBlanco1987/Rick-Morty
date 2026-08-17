@@ -15,8 +15,8 @@ struct FetchCharactersUseCase: Sendable {
     // que haya guardado, que es lo que hace que volver del detalle o repetir una búsqueda
     // no cueste una petición
     func execute(
-        page: Int = 1,
-        filter: CharacterFilter = .empty,
+        page: Int,
+        filter: CharacterFilter,
         freshness: Freshness = .acceptCached
     ) async throws(AppError) -> Page<Character> {
         try await repository.characters(page: page, filter: filter, freshness: freshness)

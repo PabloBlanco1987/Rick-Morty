@@ -13,22 +13,25 @@ import OSLog
 // En release no queda nada: los cuerpos se compilan solo en DEBUG y las llamadas desde
 // URLSessionHTTPClient se quedan vacías.
 struct NetworkLogger: Sendable {
-    private let isEnabled: Bool
-
+    // Una sola traza para toda la app: quien la usa la nombra directamente, no se
+    // inyecta. Es la excepción a la regla de inyectar y está aquí a propósito: nadie
+    // necesita otra —los tests la apagan por entorno— y un parámetro que nadie pasa es
+    // un seam de mentira.
     static let shared = NetworkLogger()
-
-    init(isEnabled: Bool = NetworkLogger.isEnabledByDefault) {
-        self.isEnabled = isEnabled
-    }
 
     // Durante los tests se apaga: la suite lanza un montón de peticiones de mentira y el
     // log taparía lo que se está mirando.
-    private static var isEnabledByDefault: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
-    }
+    private let isEnabled = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
+
+    private init() {}
 
     // MARK: - Puntos de entrada
 
+    // Las URLs salen con privacy: .public a sabiendas, y con ellas lo que el usuario
+    // teclea en la búsqueda (?name=...). Es una traza de depuración que solo existe en
+    // DEBUG, contra una API pública, y redactar la query sería dejar la consola sin lo
+    // único que hace falta ver: qué se está pidiendo. En un producto con datos
+    // personales de verdad la query iría con la privacidad por defecto.
     func logRequest(_ request: URLRequest) {
         #if DEBUG
         guard isEnabled else { return }
@@ -64,10 +67,14 @@ struct NetworkLogger: Sendable {
     // Lo que decide el limitador de ritmo: cuándo se frena y a qué ritmo se vuelve. Sale
     // como aviso y no como depuración porque es lo que hay que mirar cuando la rejilla
     // se queda gris: dice si el servidor nos ha parado y cuánto.
-    func logThrottle(_ message: String) {
+    // @autoclosure para que el texto —con sus duraciones y ritmos interpolados— solo se
+    // construya cuando de verdad se va a escribir: en release el cuerpo se compila vacío
+    // y no tendría sentido pagar el formateo para tirarlo.
+    func logThrottle(_ message: @autoclosure () -> String) {
         #if DEBUG
         guard isEnabled else { return }
-        Self.log.notice("\(message, privacy: .public)")
+        let text = message()
+        Self.log.notice("\(text, privacy: .public)")
         #endif
     }
 

@@ -10,6 +10,13 @@ import SwiftUI
 struct CharacterDetailView: View {
     @State private var viewModel: CharacterDetailViewModel
 
+    // Cuántas veces se ha pedido cargar: 0 es el arranque y cada "Try again" suma uno.
+    // Es la identidad de la tarea de carga, y así la vista es la dueña de todas: al salir
+    // de la pantalla SwiftUI la cancela, y un reintento cancela al anterior si aún estaba
+    // en vuelo. Con un Task { } suelto en el botón, la petición seguía después de hacer
+    // pop y escribía el estado en un view model que ya nadie miraba.
+    @State private var loadAttempt = 0
+
     @MainActor
     init(
         character: Character,
@@ -28,8 +35,12 @@ struct CharacterDetailView: View {
         content
             .navigationTitle(viewModel.character?.name ?? "")
             .navigationBarTitleDisplayMode(.inline)
-            .task {
-                await viewModel.onAppear()
+            .task(id: loadAttempt) {
+                if loadAttempt == 0 {
+                    await viewModel.onAppear()
+                } else {
+                    await viewModel.retry()
+                }
             }
     }
 
@@ -60,7 +71,10 @@ struct CharacterDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 CachedAsyncImage(url: character.imageURL)
                     .aspectRatio(1, contentMode: .fit)
-                    .frame(maxWidth: .infinity)
+                    // Con tope: los avatares de la API son de 300 px, y en un iPad a
+                    // pantalla completa el ancho entero serían mil puntos de imagen
+                    // estirada. En un iPhone el tope no llega a aplicarse.
+                    .frame(maxWidth: 360)
                     .clipShape(.rect(cornerRadius: 20))
                     .accessibilityHidden(true)
 
@@ -68,6 +82,9 @@ struct CharacterDetailView: View {
                     Text(character.name)
                         .font(.largeTitle.bold())
                         .fixedSize(horizontal: false, vertical: true)
+                        // Es la cabecera de la ficha, y así el rotor de VoiceOver puede
+                        // saltar a ella y a las secciones de abajo sin leerlo todo
+                        .accessibilityAddTraits(.isHeader)
 
                     CharacterStatusBadge(status: character.status)
                 }
@@ -83,6 +100,7 @@ struct CharacterDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text(.characterDetailInformationTitle)
                     .font(.title2.bold())
+                    .accessibilityAddTraits(.isHeader)
 
                 VStack(spacing: 0) {
                     DetailRow(
@@ -116,7 +134,10 @@ struct CharacterDetailView: View {
 
                     DetailRow(
                         label: String(localized: .characterDetailOriginLabel),
-                        value: character.origin,
+                        // El lugar desconocido se dice como los demás valores
+                        // desconocidos de la ficha, en el idioma del usuario, en vez de
+                        // colar el "unknown" en minúscula que manda la API
+                        value: character.origin ?? String(localized: .characterDetailUnknownPlace),
                         systemImage: "globe"
                     )
 
@@ -125,7 +146,7 @@ struct CharacterDetailView: View {
 
                     DetailRow(
                         label: String(localized: .characterDetailLocationLabel),
-                        value: character.location,
+                        value: character.location ?? String(localized: .characterDetailUnknownPlace),
                         systemImage: "mappin.and.ellipse"
                     )
                 }
@@ -145,6 +166,7 @@ struct CharacterDetailView: View {
             HStack(spacing: 10) {
                 Text(.characterDetailEpisodesTitle)
                     .font(.title2.bold())
+                    .accessibilityAddTraits(.isHeader)
 
                 if !viewModel.episodes.isEmpty {
                     Text(
@@ -242,11 +264,7 @@ struct CharacterDetailView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
-            Button(.characterDetailRetryButton) {
-                Task {
-                    await viewModel.retry()
-                }
-            }
+            Button(.characterDetailRetryButton) { loadAttempt += 1 }
             .buttonStyle(.bordered)
             .padding(.top, 4)
         }
@@ -267,11 +285,7 @@ struct CharacterDetailView: View {
         } description: {
             Text(error.message)
         } actions: {
-            Button(.characterDetailRetryButton) {
-                Task {
-                    await viewModel.retry()
-                }
-            }
+            Button(.characterDetailRetryButton) { loadAttempt += 1 }
             .buttonStyle(.borderedProminent)
         }
     }

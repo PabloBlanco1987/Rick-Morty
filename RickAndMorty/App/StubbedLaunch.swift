@@ -107,8 +107,7 @@ struct StubbedCharacterRepository: CharacterRepository {
         return Page(
             items: Array(matches[start..<min(start + Self.pageSize, matches.count)]),
             currentPage: page,
-            totalPages: totalPages,
-            totalCount: matches.count
+            totalPages: totalPages
         )
     }
 

@@ -110,8 +110,7 @@ extension Page where Item == Character {
         Page(
             items: ids.map { Character.stub(id: $0, name: "Character \($0)") },
             currentPage: page,
-            totalPages: totalPages,
-            totalCount: totalPages * ids.count
+            totalPages: totalPages
         )
     }
 }

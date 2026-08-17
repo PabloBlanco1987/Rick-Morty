@@ -29,6 +29,39 @@ struct RetryPolicy: Hashable, Sendable {
         }
         return base * Int(pow(2.0, Double(attempt - 2)))
     }
+
+    // El bucle de reintento, escrito una vez para todo el que reintente: el cliente HTTP
+    // y la descarga de imágenes lo comparten en vez de tener cada uno su copia. Lo que
+    // cambia entre ellos entra por parámetro: qué errores merecen otro intento y cómo se
+    // duerme, que los tests sustituyen por un registro para no esperar de verdad.
+    func attempt<Value: Sendable>(
+        sleep: @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        shouldRetry: (AppError) -> Bool = \.isRetryable,
+        _ operation: () async throws(AppError) -> Value
+    ) async throws(AppError) -> Value {
+        var lastError: AppError = .unknown
+
+        for attempt in 1...max(1, maxAttempts) {
+            if attempt > 1 {
+                do {
+                    try await sleep(delay(beforeAttempt: attempt, after: lastError))
+                } catch {
+                    // Si sleep lanza es porque han cancelado. Respetarlo en vez de
+                    // gastar los intentos que quedan.
+                    throw .cancelled
+                }
+            }
+
+            do {
+                return try await operation()
+            } catch {
+                guard shouldRetry(error) else { throw error }
+                lastError = error
+            }
+        }
+
+        throw lastError
+    }
 }
 
 // Añade reintentos con backoff a cualquier HTTPClient.
@@ -56,27 +89,10 @@ struct RetryingHTTPClient: HTTPClient {
         _ endpoint: Endpoint,
         as type: Response.Type
     ) async throws(AppError) -> Response {
-        var lastError: AppError = .unknown
-
-        for attempt in 1...max(1, policy.maxAttempts) {
-            if attempt > 1 {
-                do {
-                    try await sleep(policy.delay(beforeAttempt: attempt, after: lastError))
-                } catch {
-                    // Si sleep lanza es porque han cancelado. Respetarlo en vez de
-                    // gastar los intentos que quedan.
-                    throw .cancelled
-                }
-            }
-
-            do {
-                return try await wrapped.send(endpoint, as: type)
-            } catch {
-                guard error.isRetryable else { throw error }
-                lastError = error
-            }
+        // La firma del closure va escrita entera porque la inferencia de throws tipado
+        // dentro de un literal se queda en `any Error`
+        try await policy.attempt(sleep: sleep) { () async throws(AppError) -> Response in
+            try await wrapped.send(endpoint, as: type)
         }
-
-        throw lastError
     }
 }

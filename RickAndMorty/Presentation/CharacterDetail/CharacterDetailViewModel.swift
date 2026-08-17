@@ -20,7 +20,7 @@ final class CharacterDetailViewModel {
 
     // Lo que ya se sabía al navegar. Es opcional porque el view model no da por hecho
     // que siempre se llegue desde la lista.
-    let knownCharacter: Character?
+    private let knownCharacter: Character?
 
     private let characterID: Int
     private let fetchCharacterDetail: FetchCharacterDetailUseCase

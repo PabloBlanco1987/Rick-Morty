@@ -6,14 +6,14 @@ import Testing
 struct PageTests {
     @Test("Knows there is more to load while pages remain")
     func reportsNextPage() {
-        let page = Page(items: [1, 2], currentPage: 1, totalPages: 42, totalCount: 826)
+        let page = Page(items: [1, 2], currentPage: 1, totalPages: 42)
         #expect(page.hasNextPage)
         #expect(page.nextPage == 2)
     }
 
     @Test("Stops on the last page")
     func stopsOnLastPage() {
-        let page = Page(items: [1], currentPage: 42, totalPages: 42, totalCount: 826)
+        let page = Page(items: [1], currentPage: 42, totalPages: 42)
         #expect(!page.hasNextPage)
         #expect(page.nextPage == nil)
     }
@@ -123,7 +123,7 @@ struct FetchCharacterDetailUseCaseTests {
 struct FetchCharactersUseCaseTests {
     @Test("Asks the repository for the page it was given")
     func forwardsThePage() async throws {
-        let expected = Page(items: [Character.stub()], currentPage: 3, totalPages: 42, totalCount: 826)
+        let expected = Page(items: [Character.stub()], currentPage: 3, totalPages: 42)
         let repository = StubCharacterRepository(characters: .success(expected))
         let sut = FetchCharactersUseCase(repository: repository)
 

@@ -202,7 +202,7 @@ struct CharacterListViewModelTests {
             imageURL: nil,
             episodeIDs: []
         )
-        let page = Page(items: [withoutImage, .stub(id: 2)], currentPage: 1, totalPages: 1, totalCount: 2)
+        let page = Page(items: [withoutImage, .stub(id: 2)], currentPage: 1, totalPages: 1)
         let (sut, _) = makeSUT(pages: [1: .success(page)])
 
         await sut.onAppear()
@@ -280,7 +280,8 @@ struct CharacterListViewModelTests {
         let (sut, repository) = makeSUT(pages: [1: .failure(.timeout)])
         await sut.onAppear()
 
-        await sut.retry()
+        sut.retry()
+        await sut.searchTask?.value
 
         #expect(await repository.requestedPages == [1, 1])
     }
