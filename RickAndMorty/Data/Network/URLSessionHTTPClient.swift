@@ -1,6 +1,8 @@
 import Foundation
 
-// El único sitio de la app que habla con la red.
+// El sitio por el que sale a la red todo el JSON de la app. El otro es la descarga de
+// imágenes de ImageCache, que trae bytes y no modelos; los dos comparten la traducción
+// de fallos de AppError+Network, la traza y el limitador de ritmo.
 // Todo lo que puede fallar (transporte, código de estado, payload roto) se traduce a
 // AppError antes de salir de aquí, así que URLError y DecodingError no se escapan
 // nunca de la capa de datos.
@@ -78,9 +80,6 @@ struct URLSessionHTTPClient: HTTPClient {
         if let error = AppError(statusCode: http.statusCode) { throw error }
 
         do {
-            // JSONDecoder no es Sendable, así que lo creo en cada llamada en vez de
-            // guardarlo. Crearlo cuesta microsegundos frente a una petición de
-            // decenas de milisegundos: no compensa un @unchecked Sendable.
             return try JSONDecoder.rickAndMorty.decode(Response.self, from: data)
         } catch {
             // El DecodingError trae la ruta exacta de la clave que no cuadra, y al salir
@@ -114,10 +113,13 @@ extension URLSession {
 
 extension JSONDecoder {
     // La API es toda snake_case (air_date, created), así que con una estrategia me
-    // ahorro un CodingKeys en cada DTO
-    static var rickAndMorty: JSONDecoder {
+    // ahorro un CodingKeys en cada DTO.
+    // Una sola instancia compartida: JSONDecoder es Sendable desde iOS 16, así que
+    // configurarlo una vez y reutilizarlo no necesita ningún @unchecked, y es lo que
+    // se espera de un decodificador que siempre se configura igual.
+    static let rickAndMorty: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return decoder
-    }
+    }()
 }

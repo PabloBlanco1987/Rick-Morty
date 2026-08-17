@@ -13,9 +13,11 @@ struct FetchCharacterDetailUseCase: Sendable {
     func execute(id: Int) async throws(AppError) -> CharacterDetail {
         let character = try await repository.character(id: id)
 
-        // Es raro, pero un personaje puede no tener episodios. Si no cortamos aquí
-        // hacemos un viaje al servidor para nada, y encima mal formado: el endpoint
-        // de lote no tiene forma válida con una lista de ids vacía.
+        // Es raro, pero un personaje puede no tener episodios, y sin episodios no hay
+        // nada que pedir: esta es la regla del dominio, y vale para cualquier
+        // repositorio. Que el endpoint de lote de la API no tenga además forma válida
+        // sin ids es una manía del transporte, y de esa se protege el data source por
+        // su cuenta; aquí se corta por lo primero, no por lo segundo.
         guard !character.episodeIDs.isEmpty else {
             return CharacterDetail(character: character, episodes: [])
         }

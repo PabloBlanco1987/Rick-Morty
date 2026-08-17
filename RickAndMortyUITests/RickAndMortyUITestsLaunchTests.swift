@@ -1,9 +1,11 @@
 import XCTest
 
 // Comprueba que la app arranca y deja una captura de la primera pantalla en el informe.
-// Se ejecuta una vez por configuración de la aplicación —idioma, tamaño de letra— que
-// tenga el plan de pruebas, que es lo que lo hace útil: la captura enseña si el listado
-// se rompe con Dynamic Type sin que nadie tenga que abrir el simulador.
+// Con runsForEachTargetApplicationUIConfiguration se ejecuta una vez por configuración de
+// interfaz: sin plan de pruebas, las cuatro que Xcode trae por defecto —claro y oscuro,
+// vertical y horizontal—, así que el informe enseña el listado en las cuatro sin que
+// nadie tenga que abrir el simulador. Un plan de pruebas con idiomas o tamaños de letra
+// añadiría capturas aquí mismo sin tocar el test.
 final class RickAndMortyUITestsLaunchTests: XCTestCase {
     override static var runsForEachTargetApplicationUIConfiguration: Bool {
         true
@@ -18,7 +20,7 @@ final class RickAndMortyUITestsLaunchTests: XCTestCase {
         let app = XCUIApplication()
         // Con datos fijos, igual que el resto de la suite: si no, la captura depende de
         // que la API conteste y de qué conteste
-        app.launchArguments = ["-stubbed-data"]
+        app.launchArguments = [LaunchFlags.stubbedData]
         app.launch()
 
         XCTAssertTrue(

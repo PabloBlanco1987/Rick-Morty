@@ -55,9 +55,11 @@ final class CharacterDetailViewModel {
         character != nil
     }
 
-    // La llama el .task de la vista. Igual que en el listado, solo carga la primera vez:
-    // .task se vuelve a disparar al reaparecer la vista y volver de un scroll no puede
-    // costar otra petición.
+    // La llama el .task de la vista, y solo carga la primera vez. Aquí no es por volver
+    // de otra pantalla —el detalle es la cima de la pila y se destruye al hacer pop—,
+    // sino para que la regla sea la misma que en el listado y aguante lo que venga: un
+    // enlace profundo, una hoja encima, un split view en iPad, cualquier cosa que haga
+    // reaparecer la vista sin recrearla no puede costar otra petición.
     func onAppear() async {
         guard case .idle = state else { return }
         await load()

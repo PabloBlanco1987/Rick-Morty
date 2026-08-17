@@ -84,9 +84,10 @@ implementa **Data**. Esa inversión es lo que permite que Domain compile sin con
 red y que cambiar la fuente de datos no toque nada por encima de un fichero.
 
 `AppDependencies` es la única raíz de composición: el único sitio donde se nombran los
-tipos concretos del grafo de datos. De ahí para abajo todo son protocolos, que es justo
-lo que hace que los tests de interfaz puedan arrancar la app entera con datos en memoria
-sin que ninguna capa se entere.
+tipos concretos del grafo de datos. Todo lo que cruza una frontera de capa —el
+repositorio que usa el dominio, el cliente HTTP que usa el data source— es un protocolo,
+que es justo lo que hace que los tests de interfaz puedan arrancar la app entera con
+datos en memoria sin que ninguna capa se entere.
 
 La única pieza que no entra por ahí es la caché de imágenes, que viaja por el entorno de
 SwiftUI (`@Entry var imageCache`): qué tamaño necesita una imagen es una decisión de la
@@ -202,14 +203,16 @@ interfaz en XCTest.
 
 Dos reglas que sigue toda la suite:
 
-- **Ni un solo `sleep` arbitrario.** Las esperas se inyectan y se registran
-  (`SleepRecorder`), así que lo que se comprueba es la *decisión* de esperar y cuánto,
-  no el reloj. Donde hace falta congelar una operación en vuelo se usa un rendezvous
-  (`AsyncGate`), no un «duerme 50 ms y confía». Es la diferencia entre una suite fiable y
-  una que falla una vez de cada treinta en integración continua. El único reloj de verdad
-  de toda la suite está en `doesNotBrakeWhenTheUserTakesTheirTime`, donde lo que se prueba
-  es precisamente que pase el tiempo: ahí dormir de más no puede romper nada, y dormir de
-  menos no puede pasar.
+- **Ni un solo `sleep` arbitrario.** Donde la espera es una decisión —el reintento, el
+  freno entre páginas, la búsqueda— se inyecta y se registra (`SleepRecorder`), así que
+  lo que se comprueba es cuánto se decide esperar y cuándo, no el reloj. Donde hace falta
+  congelar una operación en vuelo se usa un rendezvous (`AsyncGate`), no un «duerme
+  50 ms y confía». Es la diferencia entre una suite fiable y una que falla una vez de
+  cada treinta en integración continua. Los pocos tests que sí miran el reloj de verdad
+  —el cubo de fichas y el freno del `RateLimiter`, la pausa que caduca sola en
+  `DownloadQueue`, y `doesNotBrakeWhenTheUserTakesTheirTime`— prueban precisamente que
+  pase el tiempo, y lo hacen con márgenes que una máquina lenta solo puede agrandar:
+  dormir de más no puede romperlos, y dormir de menos no puede pasar.
 - **Los tests de interfaz no tocan la red.** Se lanzan con el argumento
   `-stubbed-data` y la app monta el mismo grafo sobre un repositorio en memoria. Un test
   de interfaz contra la API de verdad se pone rojo el día que no hay cobertura y el día

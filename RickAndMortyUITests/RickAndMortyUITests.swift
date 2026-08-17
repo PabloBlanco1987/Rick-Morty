@@ -1,5 +1,12 @@
 import XCTest
 
+// El mismo literal que lee la app al arrancar (LaunchEnvironment.stubbedFlag). Escrito
+// una vez para todo el target de UI, para que no aparezca suelto en cada test ni en el
+// de arranque.
+enum LaunchFlags {
+    static let stubbedData = "-stubbed-data"
+}
+
 // Los recorridos que un usuario hace de verdad, contra la app entera.
 //
 // Van con datos en memoria, no contra la API: un test de interfaz que dependa de la red
@@ -24,12 +31,6 @@ final class RickAndMortyUITests: XCTestCase {
         app.launchArguments = [LaunchFlags.stubbedData]
         app.launch()
         return app
-    }
-
-    // El mismo literal que lee la app al arrancar. Escrito una vez aquí para que no
-    // aparezca suelto en cada test.
-    private enum LaunchFlags {
-        static let stubbedData = "-stubbed-data"
     }
 
     @MainActor

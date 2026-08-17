@@ -333,10 +333,11 @@ final class CharacterListViewModel {
         do {
             let result = try await fetchCharacters.execute(page: page, filter: requested)
             // Además del filtro, se comprueba que esta siga siendo la página que toca.
-            // Un refresh no cancela la paginación en vuelo —conserva la lista, así que
-            // sus celdas siguen en pantalla y pueden disparar la siguiente página—, y sin
-            // esta guarda la página vieja aterrizaba sobre la lista ya sustituida: página
-            // 1 seguida de la 4, con la 2 y la 3 saltadas para siempre.
+            // Un refresh conserva la lista mientras trae la primera página, así que sus
+            // celdas del final siguen en pantalla y pueden pedir la siguiente —la 4, si
+            // se iba por la 3— antes de que llegue la 1 nueva. Sin esta guarda esa página
+            // aterrizaba sobre la lista ya sustituida: página 1 seguida de la 4, con la 2
+            // y la 3 saltadas para siempre.
             guard !Task.isCancelled,
                   requested.normalized == filter.normalized,
                   lastPage?.nextPage == page
