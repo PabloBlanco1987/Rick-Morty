@@ -34,7 +34,9 @@ struct AppDependencies: Sendable {
     static func forLaunch() -> AppDependencies {
         #if DEBUG
         if LaunchEnvironment.isStubbed {
-            return AppDependencies(repository: StubbedCharacterRepository())
+            return AppDependencies(
+                repository: StubbedCharacterRepository(refreshFails: LaunchEnvironment.refreshFails)
+            )
         }
         #endif
         return .live()

@@ -76,15 +76,11 @@ struct CharacterDetailView: View {
                     // estirada. En un iPhone el tope no llega a aplicarse.
                     .frame(maxWidth: 360)
                     .clipShape(.rect(cornerRadius: 20))
-                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text(character.name)
                         .font(.largeTitle.bold())
                         .fixedSize(horizontal: false, vertical: true)
-                        // Es la cabecera de la ficha, y así el rotor de VoiceOver puede
-                        // saltar a ella y a las secciones de abajo sin leerlo todo
-                        .accessibilityAddTraits(.isHeader)
 
                     CharacterStatusBadge(status: character.status)
                 }
@@ -100,19 +96,16 @@ struct CharacterDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text(.characterDetailInformationTitle)
                     .font(.title2.bold())
-                    .accessibilityAddTraits(.isHeader)
 
                 VStack(spacing: 0) {
                     DetailRow(
                         label: String(localized: .characterDetailSpeciesLabel),
                         value: character.species,
-                        systemImage: "sparkles"
+                        systemImage: "sparkles",
+                        showsDivider: false
                     )
 
                     if let type = character.type {
-                        Divider()
-                            .padding(.leading, 56)
-
                         DetailRow(
                             label: String(localized: .characterDetailTypeLabel),
                             value: type,
@@ -120,17 +113,11 @@ struct CharacterDetailView: View {
                         )
                     }
 
-                    Divider()
-                        .padding(.leading, 56)
-
                     DetailRow(
                         label: String(localized: .characterDetailGenderLabel),
                         value: character.gender.displayName,
                         systemImage: "person"
                     )
-
-                    Divider()
-                        .padding(.leading, 56)
 
                     DetailRow(
                         label: String(localized: .characterDetailOriginLabel),
@@ -140,9 +127,6 @@ struct CharacterDetailView: View {
                         value: character.origin ?? String(localized: .characterDetailUnknownPlace),
                         systemImage: "globe"
                     )
-
-                    Divider()
-                        .padding(.leading, 56)
 
                     DetailRow(
                         label: String(localized: .characterDetailLocationLabel),
@@ -166,17 +150,13 @@ struct CharacterDetailView: View {
             HStack(spacing: 10) {
                 Text(.characterDetailEpisodesTitle)
                     .font(.title2.bold())
-                    .accessibilityAddTraits(.isHeader)
 
                 if !viewModel.episodes.isEmpty {
-                    Text(
-                        String(
-                            localized: "characterDetail.episodesCountBadge",
-                            defaultValue: "\(viewModel.episodes.count)"
-                        )
-                    )
+                    Text(.characterDetailEpisodesCountBadge(viewModel.episodes.count))
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.green)
+                        // En primario y no en verde, por lo mismo que el badge de
+                        // estado: verde sobre verde claro se queda en 2:1 en modo claro
+                        .foregroundStyle(.primary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
                         .background(
@@ -233,11 +213,13 @@ struct CharacterDetailView: View {
                     Divider()
                 }
 
+                // Los textos salen del catálogo aunque no se vean: solo dan el ancho de
+                // la barra gris, y así no queda ningún literal de interfaz en el código
                 EpisodeRow(
                     episode: Episode(
                         id: index,
-                        name: "Episode title",
-                        code: "S01E01",
+                        name: String(localized: .characterDetailSkeletonEpisodeName),
+                        code: String(localized: .characterDetailSkeletonEpisodeCode),
                         airDate: nil
                     )
                 )
@@ -248,8 +230,6 @@ struct CharacterDetailView: View {
             in: .rect(cornerRadius: 18)
         )
         .redacted(reason: .placeholder)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(.characterDetailLoadingEpisodesAccessibilityLabel)
     }
 
     private func episodesUnavailable(_ error: AppError) -> some View {
@@ -299,18 +279,36 @@ private struct DetailRow: View {
     let label: String
     let value: String
     let systemImage: String
+    // El separador va dentro de la fila y no entre filas en el padre porque su sangría
+    // depende del tamaño del icono, que solo la fila conoce
+    var showsDivider = true
+
+    // La caja del icono crece con la letra. Fija en 28 pt, desde el tamaño AX2 el
+    // símbolo se salía de su fondo y pisaba el hueco con la etiqueta.
+    @ScaledMetric(relativeTo: .subheadline) private var iconSize: CGFloat = 28
+    private let iconSpacing: CGFloat = 12
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            horizontalLayout
+        VStack(alignment: .leading, spacing: 0) {
+            if showsDivider {
+                Divider()
+                    .padding(.leading, 16 + iconSize + iconSpacing)
+            }
 
-            verticalLayout
+            ViewThatFits(in: .horizontal) {
+                horizontalLayout
+
+                verticalLayout
+            }
+            // A todo el ancho y pegada a la izquierda: la variante vertical es más
+            // estrecha que la fila, y sin esto el contenedor la centraba y los iconos
+            // quedaban descolgados de la fila de arriba
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .accessibilityElement(children: .combine)
     }
 
     private var horizontalLayout: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: iconSpacing) {
             icon
 
             labelText
@@ -326,23 +324,25 @@ private struct DetailRow: View {
 
     private var verticalLayout: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
+            HStack(spacing: iconSpacing) {
                 icon
                 labelText
             }
 
             valueText
-                .padding(.leading, 44)
+                .padding(.leading, iconSize + iconSpacing)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }
 
+    // El icono es decoración: la etiqueta ya dice de qué va la fila, así que puede ir
+    // en verde sin que el contraste importe
     private var icon: some View {
         Image(systemName: systemImage)
             .font(.subheadline.weight(.medium))
             .foregroundStyle(.green)
-            .frame(width: 28, height: 28)
+            .frame(width: iconSize, height: iconSize)
             .background(
                 .green.opacity(0.1),
                 in: .rect(cornerRadius: 8)
@@ -362,14 +362,28 @@ private struct DetailRow: View {
     }
 }
 
+// El código a la izquierda y el título a la derecha; con tamaños de accesibilidad, el
+// código arriba y el título debajo. En horizontal, un "S01E01" a 43 pt de monoespaciada
+// se comía la mitad de la fila y al título le quedaban cinco letras por línea: se partía
+// "Episo-de" con guion y el propio código se doblaba en dos.
 private struct EpisodeRow: View {
     let episode: Episode
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+
+        layout {
             Text(episode.code)
                 .font(.caption.monospaced().weight(.semibold))
-                .foregroundStyle(.green)
+                // En primario, no en verde: el verde sobre su propio tinte no llega al
+                // contraste que pide un texto de 12 pt (queda en 1.9:1 en modo claro)
+                .foregroundStyle(.primary)
+                // Un código no se parte: antes que doblarse cede la línea al título
+                .fixedSize()
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .background(
@@ -388,23 +402,12 @@ private struct EpisodeRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-
-            Spacer(minLength: 0)
         }
+        // El ancho lo pone la fila y no un Spacer: en la variante vertical un Spacer
+        // empujaría hacia abajo en vez de hacia la derecha
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel)
-    }
-
-    private var accessibilityLabel: String {
-        [
-            episode.name,
-            episode.spokenCode,
-            episode.formattedAirDate
-        ]
-        .compactMap(\.self)
-        .joined(separator: ". ")
     }
 }
 
@@ -421,21 +424,6 @@ extension Episode {
     // emitido el 1 de diciembre. El locale, en cambio, sí es el del usuario.
     var formattedAirDate: String? {
         airDate?.formatted(Date.FormatStyle(timeZone: .gmt).day().month(.abbreviated).year())
-    }
-
-    // "S01E01" se lee de un vistazo pero VoiceOver lo deletrea letra a letra, así que
-    // para quien escucha se convierte en la frase que significa.
-    var spokenCode: String {
-        let numbers = code
-            .dropFirst()
-            .split(separator: "E")
-            .compactMap { Int($0) }
-
-        guard numbers.count == 2 else { return code }
-        return String(
-            localized: "characterDetail.episodeSpokenCode",
-            defaultValue: "Season \(numbers[0]), episode \(numbers[1])"
-        )
     }
 }
 

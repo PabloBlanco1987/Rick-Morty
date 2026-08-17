@@ -193,21 +193,9 @@
         }
       }
     },
-    "characterDetail.episodeSpokenCode" : {
-      "extractionState" : "manual",
-      "comment" : "What VoiceOver reads instead of spelling out a code like \"S01E01\" letter by letter.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Season %1$lld, episode %2$lld"
-          }
-        }
-      }
-    },
     "characterDetail.episodesCountBadge" : {
       "extractionState" : "manual",
-      "comment" : "A badge that shows the number of episodes that a character appears in. The number is in bold and green.",
+      "comment" : "Capsule next to the \"Episodes\" heading on the detail screen. %lld is how many episodes the character appears in; shown as the bare number in English.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -249,18 +237,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Information"
-          }
-        }
-      }
-    },
-    "characterDetail.loadingEpisodesAccessibilityLabel" : {
-      "extractionState" : "manual",
-      "comment" : "A label that describes the loading of episodes.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loading episodes"
           }
         }
       }
@@ -309,6 +285,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Try again"
+          }
+        }
+      }
+    },
+    "characterDetail.skeletonEpisodeCode" : {
+      "extractionState" : "manual",
+      "comment" : "Placeholder shown in place of an episode's season/episode code while the episodes skeleton is redacted. Same shape as the real codes; it only sizes the gray bar.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "S01E01"
+          }
+        }
+      }
+    },
+    "characterDetail.skeletonEpisodeName" : {
+      "extractionState" : "manual",
+      "comment" : "Placeholder text shown in place of an episode's name while the episodes skeleton is redacted: it only sizes the gray bar.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Episode title"
           }
         }
       }
@@ -375,6 +375,7 @@
     },
     "characterFilters.gender.any" : {
       "extractionState" : "manual",
+      "comment" : "Picker option meaning \"do not filter by gender\". Separate key from characterFilters.status.any so each can agree grammatically with its noun in languages that need it.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -396,13 +397,14 @@
         }
       }
     },
-    "characterFilters.species" : {
+    "characterFilters.speciesField.prompt" : {
       "extractionState" : "manual",
+      "comment" : "Placeholder for the species text field in the filters sheet: examples of what to type. Kept short so it is not truncated at accessibility text sizes. The API matches species by English text, so the examples must stay in English.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Human, Alien, Robot…"
+            "value" : "Human, Alien…"
           }
         }
       }
@@ -433,6 +435,7 @@
     },
     "characterFilters.status.any" : {
       "extractionState" : "manual",
+      "comment" : "Picker option meaning \"do not filter by status\". Separate key from characterFilters.gender.any so each can agree grammatically with its noun in languages that need it.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -444,6 +447,7 @@
     },
     "characterFilters.statusPicker.title" : {
       "extractionState" : "manual",
+      "comment" : "A label for a picker that lets the user select a character's status.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -563,7 +567,7 @@
     },
     "characterList.empty.title" : {
       "extractionState" : "manual",
-      "comment" : "A label that says \"No characters\" in the UI, with no filters active.",
+      "comment" : "Title of the empty state when the full list, with nothing narrowing it, has no characters.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -573,21 +577,9 @@
         }
       }
     },
-    "characterList.filtersButton.activeAccessibilityLabel" : {
-      "extractionState" : "manual",
-      "comment" : "The accessibility label for the toolbar button that opens the character filters, when there are active filters.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Filters, active"
-          }
-        }
-      }
-    },
     "characterList.filtersButton.title" : {
       "extractionState" : "manual",
-      "comment" : "The label and default accessibility label for the toolbar button that opens the character filters.",
+      "comment" : "The label for the toolbar button that opens the character filters.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -597,33 +589,9 @@
         }
       }
     },
-    "characterList.loadingAccessibilityLabel" : {
-      "extractionState" : "manual",
-      "comment" : "A label for the character grid while it is loading.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loading characters"
-          }
-        }
-      }
-    },
-    "characterList.loadingMoreAccessibilityLabel" : {
-      "extractionState" : "manual",
-      "comment" : "A label for a loading spinner that appears when loading more characters at the bottom of the grid.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loading more characters"
-          }
-        }
-      }
-    },
     "characterList.noMatches.description" : {
       "extractionState" : "manual",
-      "comment" : "A description of the empty state when the search yields no results with active filters.",
+      "comment" : "Description of the empty state shown when the list is narrowed by a search, by filters, or by both, and nothing matches. Keep the wording neutral so it fits all three cases.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -635,12 +603,24 @@
     },
     "characterList.noMatches.title" : {
       "extractionState" : "manual",
-      "comment" : "A label that describes the empty state when a search with active filters yields no results.",
+      "comment" : "Title of the empty state shown when the list is narrowed by a search, by filters, or by both, and nothing matches. Keep the wording neutral so it fits all three cases.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "No matches"
+          }
+        }
+      }
+    },
+    "characterList.refreshFailed.message" : {
+      "extractionState" : "manual",
+      "comment" : "Body of the notice shown at the top of the list when a pull to refresh fails and the previous list is kept. Preceded by the error title (appError.*.title).",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't refresh, so what you see may be out of date."
           }
         }
       }
@@ -683,7 +663,7 @@
     },
     "characterStatus.alive" : {
       "extractionState" : "manual",
-      "comment" : "Character.Status.alive, as shown to the user and read by VoiceOver.",
+      "comment" : "Character.Status.alive, as shown to the user.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -695,7 +675,7 @@
     },
     "characterStatus.dead" : {
       "extractionState" : "manual",
-      "comment" : "Character.Status.dead, as shown to the user and read by VoiceOver.",
+      "comment" : "Character.Status.dead, as shown to the user.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -713,18 +693,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unknown"
-          }
-        }
-      }
-    },
-    "characterStatus.unknownAccessibilityLabel" : {
-      "extractionState" : "manual",
-      "comment" : "Character.Status.unknown, as read by VoiceOver. The full phrase reads better than \"Unknown\" alone after a name and species.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Status unknown"
           }
         }
       }

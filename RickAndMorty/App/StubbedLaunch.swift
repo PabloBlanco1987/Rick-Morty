@@ -14,9 +14,17 @@ import Foundation
 enum LaunchEnvironment {
     // Lo pasa el test como argumento de lanzamiento
     static let stubbedFlag = "-stubbed-data"
+    // Además del anterior: los datos siguen en memoria, pero un pull to refresh falla.
+    // Es la única forma de que un test de interfaz vea el aviso de refresco fallido
+    // sin depender de que no haya red.
+    static let refreshFailsFlag = "-stubbed-refresh-fails"
 
     static var isStubbed: Bool {
         ProcessInfo.processInfo.arguments.contains(stubbedFlag)
+    }
+
+    static var refreshFails: Bool {
+        ProcessInfo.processInfo.arguments.contains(refreshFailsFlag)
     }
 }
 
@@ -25,6 +33,14 @@ enum LaunchEnvironment {
 // es de dónde vienen los datos.
 struct StubbedCharacterRepository: CharacterRepository {
     private static let pageSize = 20
+
+    // Si las peticiones que exigen datos frescos —solo las hace el refresh— fallan.
+    // Es lo que deja probar desde fuera que la lista se conserva y que se avisa.
+    let refreshFails: Bool
+
+    init(refreshFails: Bool = false) {
+        self.refreshFails = refreshFails
+    }
 
     // Los cuatro campos por los que se puede filtrar. Es un tipo con nombre y no una
     // tupla para que la tabla de abajo se lea sin tener que contar posiciones.
@@ -82,12 +98,17 @@ struct StubbedCharacterRepository: CharacterRepository {
         }
     }()
 
-    // freshness no aplica: en memoria no hay nada más fresco que lo que hay
+    // freshness no cambia lo que se contesta —en memoria no hay nada más fresco que lo
+    // que hay—, salvo cuando se ha pedido que refrescar falle
     func characters(
         page: Int,
         filter: CharacterFilter,
         freshness: Freshness
     ) async throws(AppError) -> Page<Character> {
+        if refreshFails, freshness == .fresh {
+            throw .offline
+        }
+
         // Los mismos criterios que aplica el servidor, y como él: por coincidencia
         // parcial y sin distinguir mayúsculas
         let matches = all.filter { character in

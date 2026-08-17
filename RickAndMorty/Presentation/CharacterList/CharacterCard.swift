@@ -22,16 +22,21 @@ struct CharacterCard: View, Equatable {
                         .padding(12)
                 }
 
+            // Sin límite de líneas en el nombre y con dos para la especie. Con un tope de
+            // dos, "Abadango Cluster Princess" salía con puntos suspensivos desde el
+            // tamaño xxLarge en dos columnas, y con uno la especie recortaba "Mythological
+            // Creature" incluso a tamaño normal. La celda ya se estira a la altura de la
+            // fila, así que una línea más solo cuesta alto, no recorta a la vecina.
             VStack(alignment: .leading, spacing: 6) {
                 Text(character.name)
                     .font(.headline)
-                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(character.species)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
@@ -45,13 +50,6 @@ struct CharacterCard: View, Equatable {
         // del fondo, y la celda tiene el borde de arriba distinto al de abajo
         .clipShape(.rect(cornerRadius: 16))
         .contentShape(.rect(cornerRadius: 16))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityIdentifier("character-\(character.id)")
-    }
-
-    private var accessibilityLabel: String {
-        "\(character.name). \(character.species). \(character.status.accessibilityDescription)"
     }
 }
 

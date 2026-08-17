@@ -21,6 +21,14 @@ final class CharacterListViewModel {
     // scroll. El fallo se cuenta en el pie, con su botón de reintentar.
     private(set) var nextPageError: AppError?
 
+    // El pull to refresh que ha fallado con la lista aún delante. La lista se queda
+    // —es lo importante— y esto es lo que hace que el usuario se entere de que lo que
+    // ve puede estar viejo. Es el error y no una bandera para que el aviso pueda decir
+    // qué ha pasado. Lo quita la siguiente carga que trae datos, un cambio de criterio
+    // —que sustituye la lista de la que avisaba— y el propio aviso al descartarse; cuánto
+    // tiempo se ve es cosa de la vista.
+    private(set) var refreshFailure: AppError?
+
     // Las imágenes de la última página que ha llegado. La vista las precalienta mientras
     // el usuario todavía está leyendo la anterior, para que cuando baje hasta ellas las
     // celdas aparezcan ya con su imagen. Aquí solo se dice cuáles son: qué se hace con
@@ -156,9 +164,9 @@ final class CharacterListViewModel {
 
     // Los filtros de la hoja: estado, género y especie. La búsqueda va aparte a propósito
     // aunque para el dominio sea un criterio más: tiene su propio control —la barra— con
-    // su propia forma de borrarse. Contarla aquí encendía el icono de filtros al teclear,
-    // VoiceOver anunciaba "Filters, active" sin haber tocado un filtro, y el "Clear" de
-    // la hoja borraba un texto que no está en la hoja.
+    // su propia forma de borrarse. Contarla aquí encendía el icono de filtros al teclear
+    // sin haber tocado un filtro, y el "Clear" de la hoja borraba un texto que no está
+    // en la hoja.
     var hasActiveFilters: Bool {
         filter.status != nil || filter.gender != nil || !filter.trimmedSpecies.isEmpty
     }
@@ -215,6 +223,8 @@ final class CharacterListViewModel {
             pagingTask = nil
             isLoadingNextPage = false
             nextPageError = nil
+            // La lista de la que avisaba se va con el esqueleto: el aviso también
+            refreshFailure = nil
             lastPage = nil
             await loadFirstPage(showingPlaceholder: true)
         }
@@ -266,6 +276,13 @@ final class CharacterListViewModel {
         await loadFirstPage(showingPlaceholder: false, freshness: .fresh)
     }
 
+    // Lo llama el aviso de refresco fallido cuando el usuario lo toca o cuando se le
+    // acaba el tiempo. Es un método y no un binding sobre `refreshFailure` para que la
+    // única forma de ponerlo siga siendo que un refresh falle de verdad.
+    func dismissRefreshFailure() {
+        refreshFailure = nil
+    }
+
     private func loadFirstPage(showingPlaceholder: Bool, freshness: Freshness = .acceptCached) async {
         if showingPlaceholder { state = .loading }
 
@@ -289,6 +306,8 @@ final class CharacterListViewModel {
             loadedIDs = Set(page.items.map(\.id))
             loadedFilter = requested.normalized
             nextPageError = nil
+            // Han llegado datos, así que lo que hay delante ya no está viejo
+            refreshFailure = nil
             latestPageImageURLs = page.items.compactMap(\.imageURL)
             apply(page.items)
         } catch {
@@ -297,15 +316,14 @@ final class CharacterListViewModel {
             guard error != .cancelled, requested.normalized == filter.normalized else { return }
 
             // Un refresh que falla no puede dejar sin lista al que ya la estaba
-            // mirando. Se conserva lo que hay y no se enseña el error.
-            //
-            // Ese refresh fallido se queda hoy sin aviso: el usuario conserva la lista,
-            // que es lo importante, pero no se entera de que lo que ve puede estar
-            // viejo. Se deja así a sabiendas porque el sitio natural es un aviso
-            // efímero, y montarlo bien —cola, tiempo de vida, que VoiceOver lo anuncie—
-            // es una pieza en sí misma. Entraría como un modificador sobre
-            // CharacterListView alimentado desde aquí. Ver README, "Límites conocidos".
-            guard state.value == nil else { return }
+            // mirando: se conserva lo que hay y el error no ocupa la pantalla. Lo que
+            // sí se hace es avisar, porque una lista que se queda igual después de tirar
+            // de ella parece fresca sin serlo. Es la única carga que puede llegar aquí
+            // con una lista delante: las demás la han cambiado antes por el esqueleto.
+            guard state.value == nil else {
+                refreshFailure = error
+                return
+            }
             state = .failed(error)
         }
     }

@@ -10,6 +10,7 @@ struct CharacterListView: View {
     @Bindable var viewModel: CharacterListViewModel
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // La misma caché que usan las celdas: desde aquí se le adelantan las imágenes de la
     // página que acaba de llegar y se le retiene la red mientras el scroll va lanzado
     @Environment(\.imageCache) private var imageCache
@@ -55,11 +56,6 @@ struct CharacterListView: View {
                                 : "line.3.horizontal.decrease.circle"
                         )
                     }
-                    .accessibilityLabel(
-                        viewModel.hasActiveFilters
-                            ? .characterListFiltersButtonActiveAccessibilityLabel
-                            : .characterListFiltersButtonTitle
-                    )
                 }
             }
             .sheet(isPresented: $isShowingFilters) {
@@ -100,6 +96,9 @@ struct CharacterListView: View {
                             .equatable()
                     }
                     .buttonStyle(.plain)
+                    // El identificador para los tests de UI va en el enlace, que es el
+                    // botón que XCTest toca, y no en la celda de dentro
+                    .accessibilityIdentifier("character-\(character.id)")
                     // El prefetch se dispara al aparecer, no al llegar al fondo:
                     // cuando el usuario ve la última fila, la página siguiente ya
                     // tiene que estar de camino.
@@ -111,6 +110,24 @@ struct CharacterListView: View {
         }
         .contentMargins(16, for: .scrollContent)
         .refreshable { await viewModel.refresh() }
+        // El aviso de refresco fallido, entre el título y la rejilla: es donde estaba el
+        // indicador de refresco del que viene. Como inset del área segura y no como
+        // overlay porque el título grande flota sobre el contenido y un overlay quedaba
+        // debajo de él; así el aviso tiene su franja y la rejilla se aparta los segundos
+        // que dura. Solo existe con la lista delante, que es la única pantalla desde la
+        // que se puede refrescar.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let error = viewModel.refreshFailure {
+                RefreshFailureNotice(error: error) { viewModel.dismissRefreshFailure() }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        // Con "reducir movimiento" el aviso aparece y se va sin animar, igual que el
+        // fundido de las imágenes: la regla de la app es no mover nada, ni siquiera un
+        // desvanecido, cuando el usuario ha pedido que no se mueva.
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: viewModel.refreshFailure)
         // Precalienta la página que acaba de llegar mientras el usuario lee la anterior.
         // Con id: cuando llega otra página se cancela el calentamiento de la anterior y
         // arranca el suyo, así que un fling que encadena páginas solo calienta la última,
@@ -163,17 +180,18 @@ struct CharacterListView: View {
                 Text(error.message)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
                 Button(.characterListRetryButton) { viewModel.retryNextPage() }
                     .buttonStyle(.bordered)
             }
+            // Sobre el contenedor y no solo sobre el mensaje: con tamaños de
+            // accesibilidad el título también se parte en dos líneas
+            .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
         } else if viewModel.isLoadingNextPage {
             ProgressView()
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
-                .accessibilityLabel(.characterListLoadingMoreAccessibilityLabel)
         }
         // Cuando ya no quedan páginas no se pone nada. Un "no hay más" al final de una
         // lista de 826 personajes es ruido: que se acabe ya se ve.
@@ -235,10 +253,6 @@ struct CharacterListView: View {
         .contentMargins(16, for: .scrollContent)
         .scrollDisabled(true)
         .redacted(reason: .placeholder)
-        // Para VoiceOver esto es una sola cosa que dice "cargando", no ocho celdas de
-        // texto falso
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(.characterListLoadingAccessibilityLabel)
     }
 
     private func errorView(_ error: AppError) -> some View {

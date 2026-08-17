@@ -20,8 +20,8 @@ struct CharacterFiltersView: View {
         NavigationStack {
             Form {
                 // Los dos selectores van juntos y sin cabecera de sección: la fila ya
-                // dice "Status" y "Gender" —es la etiqueta del Picker, que VoiceOver
-                // necesita—, y repetirlo encima como título era leer lo mismo dos veces
+                // dice "Status" y "Gender" —es la etiqueta del Picker—, y repetirlo
+                // encima como título era leer lo mismo dos veces
                 Section {
                     Picker(.characterFiltersStatusPickerTitle, selection: $viewModel.statusFilter) {
                         // "Any" es un caso más de la selección y no un botón de quitar
@@ -47,7 +47,7 @@ struct CharacterFiltersView: View {
                 }
 
                 Section {
-                    TextField(String(localized: .characterFiltersSpecies), text: $viewModel.speciesFilter)
+                    TextField(String(localized: .characterFiltersSpeciesFieldPrompt), text: $viewModel.speciesFilter)
                         // La API compara la especie por texto, así que ni el corrector ni
                         // la mayúscula automática ayudan aquí: solo cambian lo que el
                         // usuario ha escrito a propósito

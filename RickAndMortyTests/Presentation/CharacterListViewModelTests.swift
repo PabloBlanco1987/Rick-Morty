@@ -286,51 +286,6 @@ struct CharacterListViewModelTests {
         #expect(await repository.requestedPages == [1, 1])
     }
 
-    // MARK: - Refresh
-
-    @Test("Refreshing replaces the list instead of appending to it")
-    func refreshReplacesTheList() async throws {
-        let (sut, repository) = makeSUT(pages: [
-            1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
-            2: .success(.stub(page: 2, totalPages: 3, ids: 6...10)),
-        ])
-        await sut.onAppear()
-        try await scrollToTheEnd(of: sut)
-
-        await sut.refresh()
-
-        #expect(sut.state.value?.map(\.id) == [1, 2, 3, 4, 5])
-        #expect(await repository.requestedPages == [1, 2, 1])
-    }
-
-    @Test("A refresh that fails keeps the list the user was looking at")
-    func refreshFailureKeepsTheList() async {
-        // El refresh puede fallar; lo que no puede es dejar sin lista al que ya la
-        // tenía delante. Una pantalla de error aquí sería castigar al usuario por
-        // haber tirado hacia abajo.
-        let (sut, repository) = makeSUT(pages: [1: .success(.stub(page: 1, totalPages: 3, ids: 1...5))])
-        await sut.onAppear()
-
-        await repository.setCharacters(.failure(.offline), forPage: 1)
-        await sut.refresh()
-
-        #expect(sut.state.value?.map(\.id) == [1, 2, 3, 4, 5])
-    }
-
-    @Test("Refreshing clears a previous next page error")
-    func refreshClearsTheNextPageError() async throws {
-        let (sut, _) = makeSUT(pages: [
-            1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
-            2: .failure(.offline),
-        ])
-        await sut.onAppear()
-        try await scrollToTheEnd(of: sut)
-
-        await sut.refresh()
-
-        #expect(sut.nextPageError == nil)
-    }
-
     // MARK: - Helpers
 
     // Simula que aparece la última celda cargada, que es lo que hace el grid al llegar

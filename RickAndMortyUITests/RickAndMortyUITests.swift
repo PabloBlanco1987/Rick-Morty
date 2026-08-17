@@ -5,6 +5,13 @@ import XCTest
 // de arranque.
 enum LaunchFlags {
     static let stubbedData = "-stubbed-data"
+    // Además de lo anterior, un pull to refresh falla (LaunchEnvironment.refreshFailsFlag)
+    static let stubbedRefreshFails = "-stubbed-refresh-fails"
+    // El tamaño de letra más grande de accesibilidad, para toda la app y sin tocar los
+    // ajustes del simulador. Es el argumento que UIKit lee al arrancar.
+    static let largestAccessibilityTextSize = [
+        "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+    ]
 }
 
 // Los recorridos que un usuario hace de verdad, contra la app entera.
@@ -26,9 +33,9 @@ final class RickAndMortyUITests: XCTestCase {
     // Cada test arranca la app por su cuenta. Es lo que evita guardarla en una propiedad
     // implícitamente desenvuelta que hay que recordar vaciar en el tearDown.
     @MainActor
-    private func launchApp() -> XCUIApplication {
+    private func launchApp(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = [LaunchFlags.stubbedData]
+        app.launchArguments = [LaunchFlags.stubbedData] + arguments
         app.launch()
         return app
     }
@@ -127,5 +134,54 @@ final class RickAndMortyUITests: XCTestCase {
         // Bird Person, que es el 7, sí
         XCTAssertTrue(app.buttons["character-7"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["character-1"].exists)
+    }
+
+    // MARK: - Dynamic Type
+
+    // Las tres pantallas con el tamaño de letra más grande que existe. Lo que se
+    // comprueba es que a ese tamaño todo sigue en pantalla y se puede tocar: la celda,
+    // el detalle al que lleva y los selectores de la hoja de filtros.
+    @MainActor
+    func testTheScreensStayUsableAtTheLargestTextSize() throws {
+        let app = launchApp(arguments: LaunchFlags.largestAccessibilityTextSize)
+
+        let cell = app.buttons["character-1"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 5))
+        XCTAssertTrue(cell.isHittable, "At the largest text size the first cell must still be reachable")
+
+        cell.tap()
+        XCTAssertTrue(app.navigationBars["Rick Sanchez"].waitForExistence(timeout: 5))
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["character-1"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["Filters"].tap()
+        let statusPicker = app.buttons["filter-status"]
+        XCTAssertTrue(statusPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(statusPicker.isHittable)
+    }
+
+    // MARK: - Refresco fallido
+
+    @MainActor
+    func testAFailedRefreshKeepsTheListAndShowsANoticeThatCanBeDismissed() throws {
+        let app = launchApp(arguments: [LaunchFlags.stubbedRefreshFails])
+        let cell = app.buttons["character-1"]
+        XCTAssertTrue(cell.waitForExistence(timeout: 5))
+
+        // Tirar de la lista hacia abajo, como haría el usuario
+        let start = cell.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+        let end = start.withOffset(CGVector(dx: 0, dy: 500))
+        start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.5)
+
+        // El aviso aparece, dice qué ha pasado y qué significa, y la lista sigue ahí
+        let notice = app.buttons["refresh-failed"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 5), "The refresh failure notice never appeared")
+        XCTAssertTrue(notice.label.contains("No connection"))
+        XCTAssertTrue(notice.label.contains("out of date"))
+        XCTAssertTrue(app.buttons["character-1"].exists, "A failed refresh must not take the list away")
+
+        // Y se descarta tocándolo
+        notice.tap()
+        XCTAssertTrue(notice.waitForNonExistence(timeout: 3))
     }
 }

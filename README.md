@@ -5,7 +5,7 @@ personajes, búsqueda y filtros contra el servidor, y ficha de detalle con los e
 en los que sale cada personaje.
 
 SwiftUI + MVVM sobre un núcleo Clean de tres capas, **sin una sola dependencia de
-terceros**, con caché de imágenes propia de dos niveles y 144 pruebas automatizadas.
+terceros**, con caché de imágenes propia de dos niveles y 150 pruebas automatizadas.
 
 | | |
 |---|---|
@@ -48,12 +48,17 @@ que no lo tenga.
 - **Ficha de detalle** con los datos del personaje y la lista de episodios, traídos en
   una única petición en lote.
 - **Estados de pantalla completos**: esqueleto de carga, vacío, vacío-por-filtro, error
-  con reintento y error de página con reintento, cada uno con su texto.
+  con reintento, error de página con reintento, y un aviso efímero cuando un *pull to
+  refresh* falla y se conserva la lista, cada uno con su texto.
 - **Caché de imágenes propia**: reducción durante la decodificación, memoria y disco,
   descargas deduplicadas y cola con prioridad a lo que está en pantalla.
-- **Accesibilidad**: VoiceOver con una parada por celda, Dynamic Type hasta tamaños de
-  accesibilidad (la rejilla pasa a una columna), estado indicado con color *y* texto,
-  y respeto por «reducir movimiento».
+- **Dynamic Type y contraste**: hasta el tamaño de letra más grande sin recortes (la
+  rejilla pasa a una columna, las filas de la ficha y de los episodios se apilan, los
+  iconos y el punto de estado crecen con el texto), estado indicado con color *y* texto,
+  textos sobre fondos tintados en color primario para que lleguen al contraste 4.5:1, y
+  las dos únicas animaciones de la app respetando «reducir movimiento».
+- **Un solo idioma, con catálogo**: todos los textos viven en `Localizable.xcstrings`,
+  ninguno en el código, y la app se entrega en inglés.
 
 ---
 
@@ -148,6 +153,20 @@ con ese nombre una comparación como `filtros.last == .none` compila sin quejars
 pregunta si el opcional es nulo, no si el filtro está vacío: un test en verde por el
 motivo equivocado. Cambiar el nombre es lo único que hace falta para que no pueda pasar.
 
+**Un solo idioma, pero con catálogo.** La app se entrega en inglés y solo en inglés, y es
+una decisión, no algo a medias: el catálogo de strings (`Localizable.xcstrings`, con
+símbolos generados por Xcode) existe para que **ningún texto visible esté en el código**,
+no para traducir hoy. Cada clave lleva un comentario que dice dónde sale y para qué, y
+hasta los textos que solo dan ancho a un esqueleto redactado salen de ahí. Añadir un
+idioma mañana es añadir una columna al catálogo sin tocar una sola vista.
+
+**El aviso de refresco fallido dura seis segundos.** Si un *pull to refresh* falla se
+conserva la lista y aparece un aviso entre el título y la rejilla, con qué ha pasado y que
+lo que se ve puede estar viejo. Se va solo, al tocarlo, o antes si otro refresco vuelve a
+traer datos. El view model solo expone el fallo y la forma de descartarlo; cuánto dura y
+cómo entra y sale es cosa de la vista. No hay cola porque no hay más de un emisor: un
+segundo fallo mientras el aviso está en pantalla se queda con el que hay.
+
 ---
 
 ## 5. La caché de imágenes
@@ -198,7 +217,7 @@ tenía" sin dejar de pintar progresivamente ni bloquear el scroll.
 
 ## 6. Pruebas
 
-**144 pruebas**: 137 unitarias en **Swift Testing** repartidas en 20 suites, y 7 de
+**150 pruebas**: 141 unitarias en **Swift Testing** repartidas en 21 suites, y 9 de
 interfaz en XCTest.
 
 Dos reglas que sigue toda la suite:
@@ -216,7 +235,12 @@ Dos reglas que sigue toda la suite:
 - **Los tests de interfaz no tocan la red.** Se lanzan con el argumento
   `-stubbed-data` y la app monta el mismo grafo sobre un repositorio en memoria. Un test
   de interfaz contra la API de verdad se pone rojo el día que no hay cobertura y el día
-  que la API responde 429, y ninguna de las dos cosas es un fallo de la app.
+  que la API responde 429, y ninguna de las dos cosas es un fallo de la app. Con
+  `-stubbed-refresh-fails` ese mismo repositorio falla al refrescar, que es lo que deja
+  ver el aviso sin depender de que no haya red; y el recorrido de Dynamic Type arranca
+  la app con el tamaño de letra más grande que existe
+  (`-UIPreferredContentSizeCategoryName`) y comprueba que todo sigue en pantalla y se
+  puede tocar.
 
 Lo que se cubre, por capas:
 
@@ -224,8 +248,8 @@ Lo que se cubre, por capas:
 |---|---|
 | Domain | Paginación, filtros, qué error merece reintento y con cuánta paciencia, coordinación del detalle |
 | Data | Construcción y escapado de URLs, traducción de errores, decodificación, mapeo con degradación, reintentos y esperas, limitador de ritmo (fichas, freno, `Retry-After`, ritmo adaptativo), cola con prioridad y pausa, caché de imágenes y precalentamiento |
-| Presentation | Carga, paginación, deduplicación de peticiones, freno entre páginas, refresco, búsqueda con espera, filtros, y qué se conserva cuando algo falla |
-| Interfaz | Que las piezas están conectadas: lista → detalle → volver, búsqueda, vacío y filtros |
+| Presentation | Carga, paginación, deduplicación de peticiones, freno entre páginas, refresco y su aviso cuando falla, búsqueda con espera, filtros, y qué se conserva cuando algo falla |
+| Interfaz | Que las piezas están conectadas: lista → detalle → volver, búsqueda, vacío y filtros; las tres pantallas con el tamaño de letra máximo; y el aviso de refresco fallido, que aparece, conserva la lista y se descarta |
 
 ---
 
@@ -238,10 +262,6 @@ punto exacto donde entrarían:
   sistema cuando necesita espacio. Los 826 avatares son unos 20 MB en el peor caso, así
   que cabe entero; entraría como un `trim(to:)` al pasar a segundo plano, ordenando por
   fecha de último acceso.
-- **Aviso de refresco fallido.** Si un *pull to refresh* falla, se conserva la lista
-  —que es lo importante— pero el usuario no se entera de que puede estar viendo algo
-  viejo. El sitio natural es un aviso efímero, y montarlo bien (cola, duración, que
-  VoiceOver lo anuncie) es una pieza en sí misma.
 - **Reintento de imágenes desde la lista.** Una imagen que agota sus reintentos deja el
   hueco hasta que la celda sale y vuelve a entrar en pantalla. Entraría como una señal de
   reintento en el entorno que formara parte de la identidad de la tarea de carga.
@@ -254,9 +274,10 @@ punto exacto donde entrarían:
 
 ## 8. Convenciones
 
-- **Código, identificadores y textos de la interfaz en inglés.** Los comentarios y esta
-  documentación, en español: son la explicación del *porqué* de cada decisión, y esa es
-  la conversación que se tiene con quien lee el código.
+- **Código, identificadores y textos de la interfaz en inglés.** Los textos, además,
+  nunca en el código: en `Localizable.xcstrings`, con su comentario. Los comentarios y
+  esta documentación, en español: son la explicación del *porqué* de cada decisión, y
+  esa es la conversación que se tiene con quien lee el código.
 - **Los comentarios explican decisiones, no sintaxis.** Si un comentario se limita a
   repetir lo que hace la línea de abajo, sobra. Los que hay están donde alguien —incluido
   yo dentro de seis meses— se preguntaría «¿y esto por qué está así?».

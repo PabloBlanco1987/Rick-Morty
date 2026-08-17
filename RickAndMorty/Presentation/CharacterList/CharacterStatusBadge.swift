@@ -8,11 +8,16 @@ import SwiftUI
 struct CharacterStatusBadge: View {
     let status: Character.Status
 
+    // El punto y su hueco crecen con el texto: con tamaños de accesibilidad la letra
+    // llega a los 43 pt y un punto fijo de 8 se quedaba en una mota al lado
+    @ScaledMetric(relativeTo: .caption) private var dotSize: CGFloat = 8
+    @ScaledMetric(relativeTo: .caption) private var spacing: CGFloat = 6
+
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: spacing) {
             Circle()
                 .fill(status.tint)
-                .frame(width: 8, height: 8)
+                .frame(width: dotSize, height: dotSize)
 
             Text(status.displayName)
                 .font(.caption.weight(.medium))
@@ -50,16 +55,6 @@ extension Character.Status {
         case .alive: .green
         case .dead: .red
         case .unknown: .gray
-        }
-    }
-
-    // Lo que oye quien usa VoiceOver. Aquí sí conviene la frase entera: "Alive" suelto,
-    // después de un nombre y una especie, se entiende regular.
-    var accessibilityDescription: String {
-        switch self {
-        case .alive: String(localized: .characterStatusAlive)
-        case .dead: String(localized: .characterStatusDead)
-        case .unknown: String(localized: .characterStatusUnknownAccessibilityLabel)
         }
     }
 }
