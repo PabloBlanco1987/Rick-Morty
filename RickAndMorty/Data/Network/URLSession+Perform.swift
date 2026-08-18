@@ -1,10 +1,11 @@
 import Foundation
 
-// Lo que devuelve una petición que ha llegado a contestar: los bytes, la respuesta cruda
-// y lo que ha tardado la red, sin contar la espera por la ficha del limitador.
+// Lo que devuelve una petición que ha llegado a contestar con un 2xx: los bytes y lo que
+// ha tardado la red, sin contar la espera por la ficha del limitador. La respuesta cruda
+// no viaja: el código de estado y el Retry-After ya se han consumido aquí dentro, y lo
+// único que queda por hacer con ella es decodificar o guardar los bytes.
 struct HTTPExchange: Sendable {
     let data: Data
-    let response: HTTPURLResponse
     let duration: Duration
 }
 
@@ -18,11 +19,15 @@ extension URLSession {
     // que dentro de un mes solo una sepa qué es un 429 o cuándo hay que avisar al
     // limitador. Lo que cada una hace con los bytes —decodificar un modelo, guardarlos en
     // disco— ya es cosa suya.
+    //
+    // La traza se nombra directamente y no se inyecta, como en el resto de la app: solo
+    // hay una y los tests la apagan por entorno.
     func perform(
         _ request: URLRequest,
-        through limiter: RateLimiter,
-        logger: NetworkLogger = .shared
+        through limiter: RateLimiter
     ) async throws(AppError) -> HTTPExchange {
+        let logger = NetworkLogger.shared
+
         // Antes de trazar y de arrancar el reloj: la espera por una ficha no es tiempo
         // de red, y en la traza lo que interesa es lo que tarda el servidor
         try await limiter.acquire()
@@ -67,6 +72,6 @@ extension URLSession {
         }
 
         if let error = AppError(statusCode: http.statusCode) { throw error }
-        return HTTPExchange(data: data, response: http, duration: elapsed)
+        return HTTPExchange(data: data, duration: elapsed)
     }
 }

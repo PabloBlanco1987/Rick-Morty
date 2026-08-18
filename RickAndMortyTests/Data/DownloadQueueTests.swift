@@ -23,7 +23,14 @@ struct DownloadQueueTests {
                 }
             }
 
-            await gate.waitUntilReached()
+            // Antes de abrir: las dos que caben están dentro y las otras cuatro esperan
+            // hueco. Es la prueba de que nadie más ha pasado, y lo que hace que el pico
+            // que se mide después sea el de verdad y no el de quien llegó primero.
+            for _ in 0..<10_000 {
+                if await probe.current == 2 { break }
+                await Task.yield()
+            }
+            try? await waitUntilWaiting(4, in: sut)
             await gate.open()
         }
 
@@ -78,6 +85,30 @@ struct DownloadQueueTests {
         #expect(await sut.waitingCount == 0)
         await gate.open()
         await running
+    }
+
+    @Test("A download that fails hands its slot back")
+    func aFailingDownloadReleasesItsSlot() async throws {
+        // Un 503 en una imagen no puede dejar un hueco ocupado para siempre: con cuatro
+        // huecos, cuatro fallos seguidos dejarían la rejilla entera sin descargas
+        let order = OrderRecorder()
+        let sut = DownloadQueue(limit: 1)
+
+        await #expect(throws: AppError.server(statusCode: 503)) {
+            try await sut.enqueue { () async throws(AppError) -> Data in throw .server(statusCode: 503) }
+        }
+
+        // En una tarea aparte y con un plazo: si el hueco se hubiera quedado ocupado,
+        // esperar aquí sería colgar el test en vez de suspenderlo
+        let next = Task { await enqueue(1, on: sut, recordingInto: order) }
+        for _ in 0..<10_000 {
+            if await !order.ids.isEmpty { break }
+            await Task.yield()
+        }
+        next.cancel()
+        await next.value
+
+        #expect(await order.ids == [1], "The slot the failed download held was never handed back")
     }
 
     @Test("A request cancelled while queued fails as cancelled and never runs its work")
@@ -191,6 +222,36 @@ struct DownloadQueueTests {
 
         #expect(await order.ids == [1])
         #expect(await sut.isPaused == false)
+    }
+
+    @Test("A stale timer from an earlier pause does not lift a newer one")
+    func anEarlierPauseTimerDoesNotLiftALaterPause() async throws {
+        // Pausar, reanudar y volver a pausar deja vivo el temporizador de la primera. Sin
+        // la generación, ese temporizador levantaría la segunda pausa antes de tiempo y
+        // un fling encadenado volvería a soltar peticiones a mitad de gesto.
+        //
+        // Se mira el reloj de verdad, con márgenes: la primera pausa caduca al segundo, la
+        // segunda a segundo y medio, y se comprueba a los 1,25. Una máquina lenta alarga
+        // los sueños, y el único riesgo es que la comprobación se retrase un cuarto de
+        // segundo, que es mucho más de lo que tarda en despertar una tarea.
+        let sut = DownloadQueue(limit: 1, pauseTimeout: .seconds(1))
+        let order = OrderRecorder()
+
+        await sut.setPaused(true)
+        try await Task.sleep(for: .milliseconds(500))
+        await sut.setPaused(false)
+        await sut.setPaused(true)
+        async let held: Void = enqueue(1, on: sut, recordingInto: order)
+        try await waitUntilWaiting(1, in: sut)
+
+        // Ya ha pasado el plazo de la primera pausa, y la segunda sigue puesta
+        try await Task.sleep(for: .milliseconds(750))
+        #expect(await sut.isPaused, "The first pause's timer lifted the second pause")
+        #expect(await order.ids.isEmpty)
+
+        // Y la segunda caduca cuando le toca a ella
+        await held
+        #expect(await order.ids == [1])
     }
 
     // MARK: - Helpers

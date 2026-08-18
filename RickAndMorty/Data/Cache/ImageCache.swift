@@ -63,11 +63,13 @@ actor ImageCache {
     private var lastWaiterToken = 0
 
     // internal para que los tests puedan comprobar que una descarga que ya no
-    // interesa a nadie desaparece de verdad, y que una pausa retiene de verdad
+    // interesa a nadie desaparece de verdad, que una pausa retiene de verdad, y que
+    // una segunda celda se ha enganchado a una descarga antes de cancelar la primera
     var inFlightCount: Int { inFlight.count }
     var waitingDownloadCount: Int {
         get async { await queue.waitingCount }
     }
+    func waiterCount(for url: URL) -> Int { inFlight[url]?.waiters.count ?? 0 }
 
     init(
         directory: URL = ImageCache.defaultDirectory,
@@ -87,17 +89,13 @@ actor ImageCache {
         // 429 y se lleve por delante también la carga de la página siguiente.
         // No retrasa nada de lo que ya esté en memoria o en disco: eso ni pasa por aquí.
         settleDelay: Duration = .milliseconds(120),
-        // El mismo que usa el cliente HTTP: el cupo del servidor es uno para JSON e
-        // imágenes, así que el freno tiene que ser el mismo objeto
-        limiter: RateLimiter = .shared,
-        // nil y no un valor por defecto porque el de producción necesita el limitador de
-        // arriba, y un valor por defecto no puede leer otro parámetro
+        // Se inyecta para que los tests no toquen la red; sin él, la descarga de verdad
+        // con sus reintentos. Va como opcional y no como valor por defecto para que el de
+        // producción —dos estáticos del tipo compuestos— se lea aquí y no en la firma.
         loader: DataLoader? = nil
     ) {
         self.directory = directory
-        self.loader = loader ?? Self.retrying({ (url: URL) async throws(AppError) -> Data in
-            try await Self.download(url, through: limiter)
-        })
+        self.loader = loader ?? Self.retrying(Self.download)
         self.settleDelay = settleDelay
         self.queue = DownloadQueue(limit: maxConcurrentDownloads)
         // NSCache ya se vacía sola cuando el sistema avisa de presión de memoria, así
@@ -373,7 +371,7 @@ actor ImageCache {
     // que se está usando. Entraría como un `trim(to:)` llamado al pasar la app a segundo
     // plano, ordenando los ficheros por .contentAccessDateKey y borrando los más viejos
     // hasta bajar del límite. Ver README, "Límites conocidos".
-    static var defaultDirectory: URL {
+    private static var defaultDirectory: URL {
         URL.cachesDirectory.appending(path: "ImageCache", directoryHint: .isDirectory)
     }
 
@@ -409,17 +407,19 @@ actor ImageCache {
     // Descarga directa, sin pasar por HTTPClient: ahí lo que llega es JSON que hay que
     // decodificar, y aquí lo que hace falta son los bytes tal cual. Todo lo demás —la
     // ficha del limitador, la traza, el transporte y el código de estado— es el mismo
-    // URLSession.perform que usa el cliente HTTP, escrito una vez para los dos.
+    // URLSession.perform que usa el cliente HTTP, escrito una vez para los dos. Y el
+    // limitador es el mismo objeto que el del cliente HTTP: el cupo del servidor es uno
+    // para JSON e imágenes, así que el freno tiene que ser uno.
     //
     // Solo se traza y se gasta ficha en lo que sale a la red de verdad. Lo que se
     // resuelve en memoria o en disco no llega hasta aquí, y así el log dice qué se está
     // pidiendo fuera y no cuántas celdas se han pintado. Como se llama desde dentro de la
     // cola, el orden es hueco (LIFO) primero y ficha después: la prioridad se aplica al
     // recurso escaso, que cuando el servidor aprieta es la ficha.
-    static func download(_ url: URL, through limiter: RateLimiter) async throws(AppError) -> Data {
+    private static func download(_ url: URL) async throws(AppError) -> Data {
         // Petición explícita en vez de data(from:) —que monta esta misma por dentro—
         // para poder trazarla
-        try await imageSession.perform(URLRequest(url: url), through: limiter).data
+        try await imageSession.perform(URLRequest(url: url), through: .shared).data
     }
 
     private static let imageSession: URLSession = {

@@ -25,7 +25,6 @@ actor StubHTTPClient: HTTPClient {
     }
 
     init(json: String) { self.init([.json(json)]) }
-    init(failure: AppError) { self.init([.failure(failure)]) }
 
     func send<Response: Decodable & Sendable>(
         _ endpoint: Endpoint,

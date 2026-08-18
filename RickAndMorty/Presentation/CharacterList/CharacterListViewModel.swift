@@ -364,8 +364,15 @@ final class CharacterListViewModel {
 
     private func appendPage(_ page: Int) async {
         defer {
-            isLoadingNextPage = false
-            pagingTask = nil
+            // Solo si esta sigue siendo la carga en curso. A una que se canceló —por un
+            // refresh o un cambio de criterio— ya la dio de baja quien la canceló, y para
+            // entonces puede haber otra página en vuelo en su lugar: apagar aquí el
+            // indicador sería apagar el de esa otra, y dejar que una celda colara una
+            // segunda petición de la misma página.
+            if !Task.isCancelled {
+                isLoadingNextPage = false
+                pagingTask = nil
+            }
         }
 
         let requested = filter

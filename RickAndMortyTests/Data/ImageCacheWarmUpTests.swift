@@ -31,9 +31,11 @@ struct ImageCacheWarmUpTests {
         }
     }
 
-    @Test("Warming skips what is already on disk")
+    @Test("Warming what is already on disk costs no download")
     func warmingSkipsWhatIsOnDisk() async throws {
         try await withTemporaryDirectory { directory in
+            // Lo que ya está guardado ni se pide: es lo que hace que precalentar una página
+            // ya vista —volver atrás y adelante en el scroll— salga gratis
             let loader = CountingImageLoader(returning: try ImageFixtures.png(side: 600))
             let sut = ImageCache(directory: directory, settleDelay: .zero, loader: loader.load)
             _ = try await sut.image(for: url, size: cellSize, scale: scale)

@@ -7,30 +7,11 @@ import Testing
 @MainActor
 @Suite("Character list view model")
 struct CharacterListViewModelTests {
-    // El freno entre páginas se registra en vez de dormirse: la suite se queda en
-    // milisegundos y además se puede comprobar que existe
-    private func makeSUT(
-        _ repository: StubCharacterRepository,
-        recordingWaitsInto recorder: SleepRecorder? = nil
-    ) -> CharacterListViewModel {
-        CharacterListViewModel(
-            fetchCharacters: FetchCharactersUseCase(repository: repository),
-            sleep: { await recorder?.record($0) }
-        )
-    }
-
-    private func makeSUT(pages: [Int: Result<Page<Character>, AppError>]) -> (
-        CharacterListViewModel, StubCharacterRepository
-    ) {
-        let repository = StubCharacterRepository(charactersByPage: pages)
-        return (makeSUT(repository), repository)
-    }
-
     // MARK: - Carga inicial
 
     @Test("Starts idle, with nothing loading and no page error")
     func startsIdle() {
-        let sut = makeSUT(StubCharacterRepository())
+        let sut = CharacterListViewModel.forTesting(StubCharacterRepository())
 
         #expect(sut.state == .idle)
         #expect(!sut.isLoadingNextPage)
@@ -39,7 +20,9 @@ struct CharacterListViewModelTests {
 
     @Test("The first page that arrives becomes the loaded state")
     func loadsFirstPage() async {
-        let (sut, repository) = makeSUT(pages: [1: .success(.stub(page: 1, totalPages: 3, ids: 1...5))])
+        let (sut, repository) = CharacterListViewModel.forTesting(pages: [
+            1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
+        ])
 
         await sut.onAppear()
 
@@ -49,7 +32,9 @@ struct CharacterListViewModelTests {
 
     @Test("A first page with no characters is empty, which is not the same as failed")
     func emptyFirstPage() async {
-        let (sut, _) = makeSUT(pages: [1: .success(.empty())])
+        let (sut, _) = CharacterListViewModel.forTesting(pages: [
+            1: .success(.empty()),
+        ])
 
         await sut.onAppear()
 
@@ -60,7 +45,9 @@ struct CharacterListViewModelTests {
     func appearingAgainDoesNotReload() async {
         // .task se vuelve a disparar cada vez que la vista aparece. Si eso recargara,
         // volver del detalle costaría la lista entera y la posición del scroll.
-        let (sut, repository) = makeSUT(pages: [1: .success(.stub(page: 1, totalPages: 3, ids: 1...5))])
+        let (sut, repository) = CharacterListViewModel.forTesting(pages: [
+            1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
+        ])
 
         await sut.onAppear()
         await sut.onAppear()
@@ -72,13 +59,13 @@ struct CharacterListViewModelTests {
 
     @Test("The next page is appended to what is already on screen")
     func appendsNextPage() async throws {
-        let (sut, repository) = makeSUT(pages: [
+        let (sut, repository) = CharacterListViewModel.forTesting(pages: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .success(.stub(page: 2, totalPages: 3, ids: 6...10)),
         ])
         await sut.onAppear()
 
-        try await scrollToTheEnd(of: sut)
+        try await sut.scrollToTheEnd()
 
         #expect(sut.state.value?.map(\.id) == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         #expect(await repository.requestedPages == [1, 2])
@@ -87,7 +74,7 @@ struct CharacterListViewModelTests {
 
     @Test("Two cells appearing at once only ask for the next page once")
     func guardsAgainstDuplicateNextPageLoads() async throws {
-        let (sut, repository) = makeSUT(pages: [
+        let (sut, repository) = CharacterListViewModel.forTesting(pages: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .success(.stub(page: 2, totalPages: 3, ids: 6...10)),
         ])
@@ -115,10 +102,10 @@ struct CharacterListViewModelTests {
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .success(.stub(page: 2, totalPages: 3, ids: 6...10)),
         ])
-        let sut = makeSUT(repository, recordingWaitsInto: waits)
+        let sut = CharacterListViewModel.forTesting(repository, recordingWaitsInto: waits)
         await sut.onAppear()
 
-        try await scrollToTheEnd(of: sut)
+        try await sut.scrollToTheEnd()
 
         // Se ha esperado, y menos de lo que dura el freno entero: lo que se descuenta
         // es el tiempo que ya se fue en traer la página anterior
@@ -137,18 +124,20 @@ struct CharacterListViewModelTests {
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .success(.stub(page: 2, totalPages: 3, ids: 6...10)),
         ])
-        let sut = makeSUT(repository, recordingWaitsInto: waits)
+        let sut = CharacterListViewModel.forTesting(repository, recordingWaitsInto: waits)
         await sut.onAppear()
         try await Task.sleep(for: .milliseconds(450))
 
-        try await scrollToTheEnd(of: sut)
+        try await sut.scrollToTheEnd()
 
         #expect(await waits.durations.isEmpty)
     }
 
     @Test("A cell that is not near the end does not ask for anything")
     func onlyTheLastCellsTrigger() async throws {
-        let (sut, repository) = makeSUT(pages: [1: .success(.stub(page: 1, totalPages: 3, ids: 1...20))])
+        let (sut, repository) = CharacterListViewModel.forTesting(pages: [
+            1: .success(.stub(page: 1, totalPages: 3, ids: 1...20)),
+        ])
         await sut.onAppear()
         let first = try #require(sut.state.value?.first)
 
@@ -160,13 +149,32 @@ struct CharacterListViewModelTests {
 
     @Test("Nothing is asked for past the last page")
     func stopsAtTheLastPage() async throws {
-        let (sut, repository) = makeSUT(pages: [1: .success(.stub(page: 1, totalPages: 1, ids: 1...5))])
+        let (sut, repository) = CharacterListViewModel.forTesting(pages: [
+            1: .success(.stub(page: 1, totalPages: 1, ids: 1...5)),
+        ])
         await sut.onAppear()
 
-        try await scrollToTheEnd(of: sut)
+        try await sut.scrollToTheEnd()
 
         #expect(await repository.requestedPages == [1])
         #expect(!sut.isLoadingNextPage)
+    }
+
+    @Test("A character that comes back in two pages is only shown once")
+    func doesNotShowTheSameCharacterTwice() async throws {
+        // La API pagina sobre una lista estable, pero si dos páginas trajeran el mismo
+        // personaje, ForEach acabaría con dos ids iguales y SwiftUI dejaría de saber qué
+        // celda es cuál. Y lo que se adelanta a la caché son solo las imágenes nuevas.
+        let (sut, _) = CharacterListViewModel.forTesting(pages: [
+            1: .success(.stub(page: 1, totalPages: 2, ids: 1...5)),
+            2: .success(.stub(page: 2, totalPages: 2, ids: 4...8)),
+        ])
+        await sut.onAppear()
+
+        try await sut.scrollToTheEnd()
+
+        #expect(sut.state.value?.map(\.id) == [1, 2, 3, 4, 5, 6, 7, 8])
+        #expect(sut.latestPageImageURLs.map(\.absoluteString) == (6...8).map(avatar))
     }
 
     // MARK: - Imágenes que adelantar
@@ -176,7 +184,7 @@ struct CharacterListViewModelTests {
         // Lo que ya se ha visto ya está en disco; lo que hay que adelantar es lo que
         // viene. Publicar la lista entera haría que la vista volviera a recorrer
         // ochocientas URLs por cada página nueva.
-        let (sut, _) = makeSUT(pages: [
+        let (sut, _) = CharacterListViewModel.forTesting(pages: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .success(.stub(page: 2, totalPages: 3, ids: 6...10)),
         ])
@@ -184,7 +192,7 @@ struct CharacterListViewModelTests {
         await sut.onAppear()
         #expect(sut.latestPageImageURLs.map(\.absoluteString) == (1...5).map(avatar))
 
-        try await scrollToTheEnd(of: sut)
+        try await sut.scrollToTheEnd()
         #expect(sut.latestPageImageURLs.map(\.absoluteString) == (6...10).map(avatar))
     }
 
@@ -203,7 +211,9 @@ struct CharacterListViewModelTests {
             episodeIDs: []
         )
         let page = Page(items: [withoutImage, .stub(id: 2)], currentPage: 1, totalPages: 1)
-        let (sut, _) = makeSUT(pages: [1: .success(page)])
+        let (sut, _) = CharacterListViewModel.forTesting(pages: [
+            1: .success(page),
+        ])
 
         await sut.onAppear()
 
@@ -218,7 +228,9 @@ struct CharacterListViewModelTests {
 
     @Test("A first page that fails takes over the screen")
     func firstPageFailureReplacesTheScreen() async {
-        let (sut, _) = makeSUT(pages: [1: .failure(.server(statusCode: 500))])
+        let (sut, _) = CharacterListViewModel.forTesting(pages: [
+            1: .failure(.server(statusCode: 500)),
+        ])
 
         await sut.onAppear()
 
@@ -230,13 +242,13 @@ struct CharacterListViewModelTests {
     func nextPageFailureKeepsWhatIsLoaded() async throws {
         // Es la diferencia entre un fallo de pantalla y un fallo de página: si se cae
         // la siguiente, las cinco que el usuario está mirando siguen siendo válidas.
-        let (sut, _) = makeSUT(pages: [
+        let (sut, _) = CharacterListViewModel.forTesting(pages: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .failure(.offline),
         ])
         await sut.onAppear()
 
-        try await scrollToTheEnd(of: sut)
+        try await sut.scrollToTheEnd()
 
         #expect(sut.state.value?.map(\.id) == [1, 2, 3, 4, 5])
         #expect(sut.nextPageError == .offline)
@@ -248,26 +260,26 @@ struct CharacterListViewModelTests {
         // Las celdas del final siguen apareciendo después del fallo. Sin la guarda,
         // cada aparición dispararía otra petición contra un servidor que ya ha dicho
         // que no.
-        let (sut, repository) = makeSUT(pages: [
+        let (sut, repository) = CharacterListViewModel.forTesting(pages: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .failure(.offline),
         ])
         await sut.onAppear()
-        try await scrollToTheEnd(of: sut)
+        try await sut.scrollToTheEnd()
 
-        try await scrollToTheEnd(of: sut)
+        try await sut.scrollToTheEnd()
 
         #expect(await repository.requestedPages == [1, 2])
     }
 
     @Test("Retrying a failed next page asks for it again")
     func retryingANextPageAsksAgain() async throws {
-        let (sut, repository) = makeSUT(pages: [
+        let (sut, repository) = CharacterListViewModel.forTesting(pages: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .failure(.offline),
         ])
         await sut.onAppear()
-        try await scrollToTheEnd(of: sut)
+        try await sut.scrollToTheEnd()
 
         sut.retryNextPage()
         await sut.pagingTask?.value
@@ -277,7 +289,9 @@ struct CharacterListViewModelTests {
 
     @Test("Retrying the first page asks for it again from the error screen")
     func retryingTheFirstPageAsksAgain() async {
-        let (sut, repository) = makeSUT(pages: [1: .failure(.timeout)])
+        let (sut, repository) = CharacterListViewModel.forTesting(pages: [
+            1: .failure(.timeout),
+        ])
         await sut.onAppear()
 
         sut.retry()
@@ -286,13 +300,48 @@ struct CharacterListViewModelTests {
         #expect(await repository.requestedPages == [1, 1])
     }
 
-    // MARK: - Helpers
+    @Test("Coming back to a failed screen does not retry on its own")
+    func appearingAgainOnAFailedScreenDoesNotRetry() async {
+        // Reintentar es una decisión del usuario, con su botón. Si volver a la pantalla
+        // repitiera la petición, una hoja que se abre y se cierra sobre el error
+        // martillearía a un servidor que ya ha dicho que no.
+        let (sut, repository) = CharacterListViewModel.forTesting(pages: [
+            1: .failure(.timeout),
+        ])
 
-    // Simula que aparece la última celda cargada, que es lo que hace el grid al llegar
-    // al fondo, y espera a que termine lo que eso haya disparado
-    private func scrollToTheEnd(of sut: CharacterListViewModel) async throws {
-        let last = try #require(sut.state.value?.last)
-        sut.loadNextPageIfNeeded(after: last)
-        await sut.pagingTask?.value
+        await sut.onAppear()
+        await sut.onAppear()
+
+        #expect(sut.state == .failed(.timeout))
+        #expect(await repository.requestedPages == [1])
+    }
+
+    @Test("Being cancelled is not failing: nothing is shown for it")
+    func aCancelledLoadIsNotAFailure() async {
+        // Si el usuario se ha ido de la pantalla mientras cargaba, no hay nada que
+        // contarle: la pantalla de error no puede aparecer por una petición que se
+        // canceló a propósito
+        let (sut, _) = CharacterListViewModel.forTesting(pages: [
+            1: .failure(.cancelled),
+        ])
+
+        await sut.onAppear()
+
+        #expect(sut.state == .loading)
+    }
+
+    @Test("A next page that was cancelled leaves no error in the footer")
+    func aCancelledNextPageIsNotAFailure() async throws {
+        let (sut, _) = CharacterListViewModel.forTesting(pages: [
+            1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
+            2: .failure(.cancelled),
+        ])
+        await sut.onAppear()
+
+        try await sut.scrollToTheEnd()
+
+        #expect(sut.state.value?.map(\.id) == [1, 2, 3, 4, 5])
+        #expect(sut.nextPageError == nil)
+        #expect(!sut.isLoadingNextPage)
     }
 }

@@ -5,7 +5,7 @@ personajes, búsqueda y filtros contra el servidor, y ficha de detalle con los e
 en los que sale cada personaje.
 
 SwiftUI + MVVM sobre un núcleo Clean de tres capas, **sin una sola dependencia de
-terceros**, con caché de imágenes propia de dos niveles y 150 pruebas automatizadas.
+terceros**, con caché de imágenes propia de dos niveles y 212 pruebas automatizadas.
 
 | | |
 |---|---|
@@ -217,7 +217,7 @@ tenía" sin dejar de pintar progresivamente ni bloquear el scroll.
 
 ## 6. Pruebas
 
-**150 pruebas**: 141 unitarias en **Swift Testing** repartidas en 21 suites, y 9 de
+**212 pruebas**: 201 unitarias en **Swift Testing** repartidas en 26 suites, y 11 de
 interfaz en XCTest.
 
 Dos reglas que sigue toda la suite:
@@ -228,10 +228,17 @@ Dos reglas que sigue toda la suite:
   congelar una operación en vuelo se usa un rendezvous (`AsyncGate`), no un «duerme
   50 ms y confía». Es la diferencia entre una suite fiable y una que falla una vez de
   cada treinta en integración continua. Los pocos tests que sí miran el reloj de verdad
-  —el cubo de fichas y el freno del `RateLimiter`, la pausa que caduca sola en
-  `DownloadQueue`, y `doesNotBrakeWhenTheUserTakesTheirTime`— prueban precisamente que
-  pase el tiempo, y lo hacen con márgenes que una máquina lenta solo puede agrandar:
-  dormir de más no puede romperlos, y dormir de menos no puede pasar.
+  —el cubo de fichas y el freno del `RateLimiter`, la pausa que caduca sola y la que un
+  temporizador viejo no puede levantar en `DownloadQueue`, el asentamiento de una celda en
+  `ImageCache`, y `doesNotBrakeWhenTheUserTakesTheirTime`— prueban precisamente que pase
+  el tiempo, y lo hacen con márgenes que una máquina lenta solo puede agrandar: dormir de
+  más no puede romperlos, y dormir de menos no puede pasar.
+- **Las carreras se prueban congelando, no adivinando.** El repositorio de mentira puede
+  retener una petición en un `AsyncGate` mientras el test cambia el criterio, refresca o
+  pide otra página, y soltarla después: así se comprueba qué se hace con una respuesta
+  que llega tarde —una búsqueda vieja, una página pedida durante un refresco, un refresco
+  que vuelve con otro filtro puesto— sin depender de que el planificador ordene las
+  cosas como el test espera.
 - **Los tests de interfaz no tocan la red.** Se lanzan con el argumento
   `-stubbed-data` y la app monta el mismo grafo sobre un repositorio en memoria. Un test
   de interfaz contra la API de verdad se pone rojo el día que no hay cobertura y el día
@@ -246,10 +253,11 @@ Lo que se cubre, por capas:
 
 | Capa | Qué se prueba |
 |---|---|
-| Domain | Paginación, filtros, qué error merece reintento y con cuánta paciencia, coordinación del detalle |
-| Data | Construcción y escapado de URLs, traducción de errores, decodificación, mapeo con degradación, reintentos y esperas, limitador de ritmo (fichas, freno, `Retry-After`, ritmo adaptativo), cola con prioridad y pausa, caché de imágenes y precalentamiento |
-| Presentation | Carga, paginación, deduplicación de peticiones, freno entre páginas, refresco y su aviso cuando falla, búsqueda con espera, filtros, y qué se conserva cuando algo falla |
-| Interfaz | Que las piezas están conectadas: lista → detalle → volver, búsqueda, vacío y filtros; las tres pantallas con el tamaño de letra máximo; y el aviso de refresco fallido, que aparece, conserva la lista y se descarta |
+| Domain | Paginación, filtros y su normalización, qué error merece reintento y con cuánta paciencia, coordinación del detalle, y que la frescura llega al repositorio |
+| Data | Construcción y escapado de URLs, frescura → política de caché en cada capa, la tabla completa de traducción de errores (`URLError` y códigos HTTP), decodificación, mapeo con degradación (estado, género, lugar «unknown», URL de imagen no absoluta, fecha en GMT), reintentos, esperas y cancelación, limitador de ritmo (fichas, freno, `Retry-After`, ritmo adaptativo, y qué 429 y qué aciertos cuentan), cola con prioridad, pausa y hueco devuelto al fallar, caché de imágenes (tamaño, memoria, disco, deduplicación, cancelación de uno de dos interesados, bytes envenenados, qué se reintenta) y precalentamiento |
+| Presentation | Carga, paginación y deduplicación de personajes, freno entre páginas, refresco y su aviso cuando falla, búsqueda con espera, filtros, la acción de la pantalla vacía, qué se conserva cuando algo falla o se cancela, y las carreras: respuestas que llegan tarde tras cambiar el criterio o refrescar. Además, que cada icono de error es un símbolo que existe, que los textos no se repiten, y que la fecha de emisión se lee el día que fue aunque el dispositivo esté al oeste de Greenwich |
+| App | El repositorio en memoria con el que arrancan los tests de interfaz pagina y filtra como el servidor |
+| Interfaz | Que las piezas están conectadas: lista → detalle con sus episodios → volver conservando la página a la que se había bajado, scroll infinito hasta la segunda página, búsqueda, vacío y su botón, filtros y su «Clear»; las tres pantallas con el tamaño de letra máximo; y el aviso de refresco fallido, que aparece, conserva la lista y se descarta |
 
 ---
 

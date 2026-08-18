@@ -34,3 +34,12 @@ func waitUntilSomethingIsWaiting(in cache: ImageCache) async {
     }
     Issue.record("No download ever reached the queue")
 }
+
+// Y lo mismo, para saber que tantas celdas se han enganchado a la descarga de una URL
+func waitUntil(_ count: Int, areWaitingFor url: URL, in cache: ImageCache) async {
+    for _ in 0..<10_000 {
+        if await cache.waiterCount(for: url) == count { return }
+        await Task.yield()
+    }
+    Issue.record("The download never reached \(count) waiters")
+}

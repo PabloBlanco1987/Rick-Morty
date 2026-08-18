@@ -98,4 +98,24 @@ struct RetryingHTTPClientTests {
         await #expect(stub.callCount == 1)
         await #expect(recorder.durations.isEmpty)
     }
+
+    @Test("Being cancelled during the back-off stops retrying and is reported as cancelled")
+    func cancellationDuringBackOffStopsRetrying() async {
+        // Si el usuario se ha ido de la pantalla mientras se esperaba al segundo intento,
+        // gastar los intentos que quedan es gastar peticiones en algo que nadie va a ver.
+        // Y lo que sale es .cancelled, no el error que provocó el reintento: la vista lo
+        // trata como "no hay nada que contar", no como un fallo.
+        let stub = StubHTTPClient([.failure(.timeout)])
+        let sut = RetryingHTTPClient(
+            wrapping: stub,
+            policy: .default,
+            // Lo que hace Task.sleep cuando la tarea está cancelada
+            sleep: { _ in throw CancellationError() }
+        )
+
+        await #expect(throws: AppError.cancelled) {
+            _ = try await sut.send(anyEndpoint, as: CharacterDTO.self)
+        }
+        await #expect(stub.callCount == 1)
+    }
 }

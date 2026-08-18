@@ -27,9 +27,9 @@ import Foundation
 actor RateLimiter {
     static let shared = RateLimiter()
 
-    // Sin ritmo ni freno, para tests y previews que no deben esperar a nadie. Es una
-    // propiedad calculada a propósito: cada acceso da una instancia nueva, así que un
-    // test que provoque un 429 no deja el freno puesto para el siguiente.
+    // Sin ritmo ni freno, para los tests que prueban otra cosa y no deben esperar a
+    // nadie. Es una propiedad calculada a propósito: cada acceso da una instancia nueva,
+    // así que un test que provoque un 429 no deja el freno puesto para el siguiente.
     static var disabled: RateLimiter {
         RateLimiter(maxRate: .infinity, burst: .infinity, coolOff: .zero)
     }

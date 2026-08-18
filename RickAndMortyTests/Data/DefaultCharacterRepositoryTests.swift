@@ -10,32 +10,30 @@ struct DefaultCharacterRepositoryTests {
 
     @Test("A listing is mapped into domain characters carrying the requested page")
     func mapsListing() async throws {
+        // La API no dice qué página es, así que el número tiene que ser el que se pidió:
+        // se pide la 3 para que un literal no pase por bueno
         let page = try await makeSUT(.json(JSONFixtures.charactersPage))
-            .characters(page: 1, filter: .empty, freshness: .acceptCached)
+            .characters(page: 3, filter: .empty, freshness: .acceptCached)
 
         #expect(page.items.map(\.name) == ["Rick Sanchez", "Morty Smith"])
+        #expect(page.currentPage == 3)
         #expect(page.totalPages == 42)
         #expect(page.hasNextPage)
     }
 
-    @Test("A search that matches nothing is an empty result, not an error")
+    @Test("A search that matches nothing is an empty result that remembers its page, not an error")
     func notFoundOnListingBecomesEmptyPage() async throws {
         // La API contesta a ?name=zzzz con un 404, no con un results vacío. Dejarlo
         // pasar como fallo sería enseñar una pantalla de error por una búsqueda
-        // normal sin resultados, así que se traduce aquí.
-        let page = try await makeSUT(.failure(.notFound))
-            .characters(page: 1, filter: CharacterFilter(name: "zzzz"), freshness: .acceptCached)
-
-        #expect(page.items.isEmpty)
-        #expect(page.currentPage == 1)
-        #expect(!page.hasNextPage)
-    }
-
-    @Test("The empty page keeps the page number that was asked for")
-    func emptyPageRemembersItsPage() async throws {
+        // normal sin resultados, así que se traduce aquí. Y la página vacía se queda con
+        // el número que se pidió: la 7, para que el valor por defecto de Page.empty() no
+        // pase por bueno.
         let page = try await makeSUT(.failure(.notFound))
             .characters(page: 7, filter: CharacterFilter(name: "zzzz"), freshness: .acceptCached)
+
+        #expect(page.items.isEmpty)
         #expect(page.currentPage == 7)
+        #expect(!page.hasNextPage)
     }
 
     @Test("Real failures on a listing are not swallowed by the 404 translation")
@@ -73,5 +71,19 @@ struct DefaultCharacterRepositoryTests {
 
         #expect(episodes.map(\.code) == ["S01E01", "S01E02"])
         #expect(episodes.allSatisfy { $0.airDate != nil })
+    }
+
+    @Test("The freshness the caller asks for reaches the request")
+    func forwardsTheFreshness() async throws {
+        // El repositorio está entre el dominio, que dice "fresco", y el data source, que
+        // lo traduce a HTTP. Si no lo pasara, el refresco quedaría en un gesto sin efecto.
+        let stub = StubHTTPClient(json: JSONFixtures.charactersPage)
+        let sut = DefaultCharacterRepository(remote: CharacterRemoteDataSource(client: stub))
+
+        _ = try await sut.characters(page: 1, filter: .empty, freshness: .acceptCached)
+        _ = try await sut.characters(page: 1, filter: .empty, freshness: .fresh)
+
+        let policies = await stub.requestedEndpoints.map(\.cachePolicy)
+        #expect(policies == [.useProtocolCachePolicy, .reloadRevalidatingCacheData])
     }
 }

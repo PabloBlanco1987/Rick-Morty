@@ -14,7 +14,17 @@ actor StubCharacterRepository: CharacterRepository {
     // Con qué criterios se ha pedido cada listado: es lo que distingue una búsqueda que
     // llega al servidor de una que se queda filtrando en el móvil lo poco que ya tenía
     private(set) var requestedFilters: [CharacterFilter] = []
+    // Y con cuánta frescura: es lo que distingue un pull to refresh, que tiene que
+    // revalidar, de las demás cargas, que se conforman con lo guardado
+    private(set) var requestedFreshness: [Freshness] = []
     private(set) var requestedCharacterIDs: [Int] = []
+
+    // Si está puesto, cada listado se para aquí antes de contestar. Es lo que deja tener
+    // una petición congelada en vuelo mientras el test cambia el criterio, refresca o
+    // pide otra página, y comprobar después qué se hace con una respuesta que llega
+    // tarde. Solo se apunta el listado: el detalle y los episodios no tienen carreras
+    // que probar.
+    private var gate: AsyncGate?
 
     var episodesCallCount: Int { requestedEpisodeIDs.count }
     var requestedSearchTerms: [String] { requestedFilters.map(\.trimmedName) }
@@ -32,16 +42,13 @@ actor StubCharacterRepository: CharacterRepository {
 
     // Una respuesta distinta por página, que es lo que hace falta para probar la
     // paginación: acumular la dos sobre la uno, o que la siete falle sin que se caigan
-    // las seis anteriores. Lo que no esté en el diccionario sale como página vacía.
-    init(
-        charactersByPage: [Int: Result<Page<Character>, AppError>],
-        character: Result<Character, AppError> = .success(.stub()),
-        episodes: Result<[Episode], AppError> = .success([])
-    ) {
+    // las seis anteriores. Lo que no esté en el diccionario sale como página vacía. Solo
+    // el listado: quien pagina no pide detalles ni episodios.
+    init(charactersByPage: [Int: Result<Page<Character>, AppError>]) {
         self.charactersByPage = charactersByPage
         self.charactersFallback = .success(.empty())
-        self.characterResult = character
-        self.episodesResult = episodes
+        self.characterResult = .success(.stub())
+        self.episodesResult = .success([])
     }
 
     // Cambia lo que se va a contestar de aquí en adelante, para probar lo que pasa
@@ -57,6 +64,15 @@ actor StubCharacterRepository: CharacterRepository {
         episodesResult = result
     }
 
+    // A partir de aquí los listados se quedan parados en el pestillo hasta que el test lo
+    // abra; con nil, los siguientes vuelven a contestar al momento y solo los que ya
+    // están parados esperan. Se apunta la petición antes de pararse, así el test puede
+    // esperar a que haya llegado con `gate.waitUntilReached()` y saber que está
+    // congelada dentro.
+    func holdListings(at gate: AsyncGate?) {
+        self.gate = gate
+    }
+
     func characters(
         page: Int,
         filter: CharacterFilter,
@@ -64,7 +80,13 @@ actor StubCharacterRepository: CharacterRepository {
     ) async throws(AppError) -> Page<Character> {
         requestedPages.append(page)
         requestedFilters.append(filter)
-        return try (charactersByPage[page] ?? charactersFallback).get()
+        requestedFreshness.append(freshness)
+        // La respuesta se decide al entrar y no al salir del pestillo: así el test puede
+        // cambiar lo que se contesta a partir de ahora sin cambiar lo que ya está en vuelo,
+        // que es lo que hace falta para distinguir una respuesta vieja de una nueva
+        let result = charactersByPage[page] ?? charactersFallback
+        await gate?.wait()
+        return try result.get()
     }
 
     func character(id: Int) async throws(AppError) -> Character {
@@ -83,13 +105,12 @@ extension Character {
     static func stub(
         id: Int = 1,
         name: String = "Rick Sanchez",
-        status: Status = .alive,
         episodeIDs: [Int] = [1, 2]
     ) -> Character {
         Character(
             id: id,
             name: name,
-            status: status,
+            status: .alive,
             species: "Human",
             type: nil,
             gender: .male,

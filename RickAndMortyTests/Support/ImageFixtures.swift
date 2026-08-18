@@ -58,7 +58,10 @@ actor CountingImageLoader {
     // la celda ha llegado hasta la petición y no se ha quedado a medio camino.
     private(set) var wasCancelled = false
 
-    private let data: Data
+    // Se contestan en orden y la última se repite: así un test puede dar unos bytes
+    // rotos primero y una imagen buena después, que es lo que hace un portal cautivo
+    // que deja de interceptar
+    private var responses: [Data]
     private let beforeReturning: (@Sendable () async -> Void)?
     private var remainingFailures: Int
     private let failure: AppError
@@ -71,7 +74,22 @@ actor CountingImageLoader {
         with failure: AppError = .server(statusCode: 503),
         beforeReturning: (@Sendable () async -> Void)? = nil
     ) {
-        self.data = data
+        self.init(
+            returningInOrder: [data],
+            failingFirst: remainingFailures,
+            with: failure,
+            beforeReturning: beforeReturning
+        )
+    }
+
+    init(
+        returningInOrder responses: [Data],
+        failingFirst remainingFailures: Int = 0,
+        with failure: AppError = .server(statusCode: 503),
+        beforeReturning: (@Sendable () async -> Void)? = nil
+    ) {
+        precondition(!responses.isEmpty, "A loader with nothing to return cannot answer anything")
+        self.responses = responses
         self.remainingFailures = remainingFailures
         self.failure = failure
         self.beforeReturning = beforeReturning
@@ -93,6 +111,6 @@ actor CountingImageLoader {
             remainingFailures -= 1
             throw failure
         }
-        return data
+        return responses.count > 1 ? responses.removeFirst() : responses[0]
     }
 }

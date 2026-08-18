@@ -61,10 +61,48 @@ struct EndpointTests {
         #expect(url.absoluteString == "https://rickandmortyapi.com/api/character/42")
     }
 
-    @Test("Requests declare the method and accept JSON")
+    @Test("Requests ask for JSON")
     func requestShape() throws {
+        // El método no se comprueba: Endpoint no lo pone, y URLRequest ya es GET por
+        // defecto, que es el único que usa una API de solo lectura
         let request = try #require(RickAndMortyAPI.character(id: 1).urlRequest(base: base))
-        #expect(request.httpMethod == "GET")
         #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
+    }
+
+    @Test("Typed criteria travel trimmed: the server never sees the surrounding spaces")
+    func sendsTrimmedValues() throws {
+        // La barra de búsqueda de iOS reescribe el texto con espacios al perder el foco.
+        // Si viajaran, "rick " y "rick" serían dos entradas distintas en la caché de
+        // URLSession para la misma búsqueda.
+        let filter = CharacterFilter(name: "  rick ", species: " Human\n")
+        let url = try url(RickAndMortyAPI.characters(page: 1, filter: filter))
+        let query = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+
+        #expect(query.contains(URLQueryItem(name: "name", value: "rick")))
+        #expect(query.contains(URLQueryItem(name: "species", value: "Human")))
+    }
+
+    @Test("A refresh revalidates; every other load takes what the cache has, at the same URL")
+    func freshnessBecomesACachePolicy() throws {
+        // La API sirve las páginas con noventa días de caducidad: con la política normal
+        // una página ya vista sale de la caché sin tocar la red. El pull to refresh es la
+        // única carga que tiene que preguntar al servidor, y lo hace con una condicional
+        // sobre la misma URL, no con otra petición: si la URL cambiara, no habría ETag
+        // guardado que mandar.
+        let cached = RickAndMortyAPI.characters(page: 1, freshness: .acceptCached)
+        let fresh = RickAndMortyAPI.characters(page: 1, freshness: .fresh)
+
+        #expect(cached.cachePolicy == .useProtocolCachePolicy)
+        #expect(fresh.cachePolicy == .reloadRevalidatingCacheData)
+        #expect(try url(cached) == url(fresh))
+    }
+
+    @Test("The cache policy travels with the request, not just with the endpoint")
+    func cachePolicyReachesTheRequest() throws {
+        // La sesión tiene una política por defecto; la de la petición manda sobre ella.
+        // Es lo que permite que la misma sesión sirva de caché al navegar y revalide al
+        // refrescar.
+        let request = try #require(RickAndMortyAPI.characters(page: 1, freshness: .fresh).urlRequest(base: base))
+        #expect(request.cachePolicy == .reloadRevalidatingCacheData)
     }
 }

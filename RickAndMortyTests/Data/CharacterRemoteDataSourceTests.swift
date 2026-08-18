@@ -52,4 +52,27 @@ struct CharacterRemoteDataSourceTests {
         #expect(endpoint.queryItems.contains(URLQueryItem(name: "page", value: "4")))
         #expect(endpoint.queryItems.contains(URLQueryItem(name: "status", value: "alive")))
     }
+
+    @Test("The detail addresses one character by id")
+    func detailBuildsTheRightEndpoint() async throws {
+        let stub = StubHTTPClient(json: JSONFixtures.rick)
+        let sut = CharacterRemoteDataSource(client: stub)
+
+        let dto = try await sut.character(id: 42)
+
+        #expect(dto.name == "Rick Sanchez")
+        await #expect(stub.requestedEndpoints.first?.path == "/character/42")
+    }
+
+    @Test("A fresh listing asks for an endpoint that revalidates")
+    func freshListingRevalidates() async throws {
+        // El data source es quien traduce la frescura del dominio a la política de caché
+        // de la petición: si se perdiera aquí, el pull to refresh saldría de la caché
+        let stub = StubHTTPClient(json: JSONFixtures.charactersPage)
+        let sut = CharacterRemoteDataSource(client: stub)
+
+        _ = try await sut.characters(page: 1, filter: .empty, freshness: .fresh)
+
+        await #expect(stub.requestedEndpoints.first?.cachePolicy == .reloadRevalidatingCacheData)
+    }
 }

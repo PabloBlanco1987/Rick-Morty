@@ -40,6 +40,18 @@ struct URLSessionHTTPClientTests {
         #expect(sent.contains("status=dead"))
     }
 
+    @Test("A refresh reaches the session asking to revalidate what it has cached")
+    func aFreshListingRevalidates() async throws {
+        // Es el último eslabón de la frescura: la política viaja en la petición y no en
+        // la sesión, porque la misma sesión sirve de caché al navegar y revalida al
+        // refrescar. Aquí se comprueba que llega hasta lo que de verdad sale.
+        StubURLProtocol.install(.ok(JSONFixtures.charactersPage))
+
+        _ = try await sut.send(RickAndMortyAPI.characters(page: 1, freshness: .fresh), as: PageDTO<CharacterDTO>.self)
+
+        #expect(StubURLProtocol.lastRequest?.cachePolicy == .reloadRevalidatingCacheData)
+    }
+
     @Test("Translates 404 into notFound, keeping the status code out of the domain")
     func mapsNotFound() async {
         StubURLProtocol.install(.status(404, json: JSONFixtures.notFoundError))
@@ -88,14 +100,19 @@ struct URLSessionHTTPClientTests {
 
         _ = try? await sut.send(RickAndMortyAPI.character(id: 1), as: CharacterDTO.self)
 
+        // Acotado por los dos lados: ni los diez segundos de la base —el encabezado se
+        // habría ignorado— ni nada muy por debajo de tres, que sería leerlo mal
         let remaining = try #require(await limiter.remainingCoolOff)
+        #expect(remaining > .seconds(2))
         #expect(remaining <= .seconds(3))
         #expect(await limiter.currentRate == 4)
     }
 
     @Test("A success tells the limiter, which is how the rate recovers")
     func reportsSuccessToTheLimiter() async throws {
-        let limiter = RateLimiter(coolOff: .zero, recoveryStreak: 1)
+        // Con un ritmo alto para que la ficha que hay que esperar tras el 429 —el cubo se
+        // vacía— cueste microsegundos y no un cuarto de segundo de reloj de verdad
+        let limiter = RateLimiter(maxRate: 1_000, coolOff: .zero, recoveryStreak: 1)
         let sut = URLSessionHTTPClient(
             base: RickAndMortyAPI.base,
             session: StubURLProtocol.makeSession(),
@@ -106,7 +123,26 @@ struct URLSessionHTTPClientTests {
 
         _ = try await sut.send(RickAndMortyAPI.character(id: 1), as: CharacterDTO.self)
 
-        #expect(await limiter.currentRate == 5)
+        #expect(await limiter.currentRate == 501)
+    }
+
+    @Test("A failure that is not a 429 leaves the limiter alone: it says nothing about the pace")
+    func otherFailuresDoNotTouchTheLimiter() async throws {
+        // Un 500 es un tropiezo del servidor, no un aviso de que vamos deprisa: ni frena
+        // ni baja el ritmo, y tampoco cuenta como acierto para recuperarlo
+        let limiter = RateLimiter(maxRate: 1_000, coolOff: .zero, recoveryStreak: 1)
+        let sut = URLSessionHTTPClient(
+            base: RickAndMortyAPI.base,
+            session: StubURLProtocol.makeSession(),
+            limiter: limiter
+        )
+        await limiter.reportRateLimited(retryAfter: nil)
+        StubURLProtocol.install(.status(500))
+
+        _ = try? await sut.send(RickAndMortyAPI.character(id: 1), as: CharacterDTO.self)
+
+        #expect(await limiter.currentRate == 500)
+        #expect(await limiter.isCoolingOff == false)
     }
 
     @Test("A payload of the wrong shape is a decoding failure, not a crash")

@@ -36,14 +36,16 @@ struct CharacterDetailViewModelTests {
     }
 
     @Test("The character that came from the list is on screen before anything is requested")
-    func showsTheKnownCharacterUpFront() {
+    func showsTheKnownCharacterUpFront() async {
         // Es la razón de ser de esta pantalla: al tocar una celda ya se sabe el nombre,
         // así que hacer esperar al usuario a que conteste el servidor para enseñárselo
         // sería una espera inventada.
-        let sut = makeSUT(StubCharacterRepository(), known: .stub(name: "Rick Sanchez"))
+        let repository = StubCharacterRepository()
+        let sut = makeSUT(repository, known: .stub(name: "Rick Sanchez"))
 
         #expect(sut.character?.name == "Rick Sanchez")
         #expect(sut.hasContentOnScreen)
+        #expect(await repository.requestedCharacterIDs.isEmpty)
     }
 
     @Test("Loading brings the character together with its episodes")
@@ -84,15 +86,30 @@ struct CharacterDetailViewModelTests {
         #expect(await repository.requestedCharacterIDs == [1])
     }
 
-    @Test("A character with no episodes costs no episode request")
-    func noEpisodesMeansNoRequest() async {
-        let repository = StubCharacterRepository(character: .success(.stub(episodeIDs: [])))
-        let sut = makeSUT(repository)
+    @Test("A character with no episodes is a loaded detail with an empty list, not a failure")
+    func noEpisodesIsLoadedNotFailed() async {
+        // Que no se pida nada por ellos lo prueba el caso de uso; lo que importa aquí es
+        // que la pantalla lo cuente como un resultado —"no sale en ningún episodio"— y no
+        // como un error de la sección
+        let character = Character.stub(episodeIDs: [])
+        let sut = makeSUT(StubCharacterRepository(character: .success(character)))
 
         await sut.onAppear()
 
+        #expect(sut.state == .loaded(CharacterDetail(character: character, episodes: [])))
         #expect(sut.episodes.isEmpty)
-        #expect(await repository.episodesCallCount == 0)
+    }
+
+    @Test("Being cancelled is not failing: nothing is written for it")
+    func aCancelledLoadIsNotAFailure() async {
+        // Si el usuario ha vuelto atrás mientras cargaba, la petición se cancela y no hay
+        // nada que contarle: ni un error en la sección de episodios ni en la pantalla
+        let sut = makeSUT(StubCharacterRepository(character: .failure(.cancelled)), known: .stub())
+
+        await sut.onAppear()
+
+        #expect(sut.state == .loading)
+        #expect(sut.hasContentOnScreen)
     }
 
     // MARK: - Fallos

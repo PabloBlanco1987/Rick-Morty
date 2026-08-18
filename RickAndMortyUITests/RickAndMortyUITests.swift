@@ -65,23 +65,47 @@ final class RickAndMortyUITests: XCTestCase {
             app.navigationBars["Rick Sanchez"].waitForExistence(timeout: 5),
             "The detail did not open for the character that was tapped"
         )
+        // Y sus episodios llegan y se pintan: la cabecera "Episodes" también está durante
+        // el esqueleto, así que lo que prueba que la carga ha terminado es una fila
         XCTAssertTrue(app.staticTexts["Episodes"].exists)
+        XCTAssertTrue(app.staticTexts["Episode 1"].waitForExistence(timeout: 5), "The episode list never loaded")
+        XCTAssertTrue(app.staticTexts["S01E01"].exists)
+    }
+
+    @MainActor
+    func testScrollingToTheEndLoadsTheNextPage() throws {
+        // El stub tiene veinticinco personajes y pagina de veinte en veinte: los últimos
+        // cinco solo existen si al acercarse al final se ha pedido la segunda página. Es
+        // el scroll infinito de punta a punta: la celda aparece, el view model pide, la
+        // rejilla crece.
+        let app = launchApp()
+        XCTAssertTrue(app.buttons["character-1"].waitForExistence(timeout: 5))
+
+        scroll(app, untilExists: app.buttons["character-25"])
+
+        XCTAssertTrue(app.buttons["character-25"].exists, "The second page never made it onto the screen")
     }
 
     @MainActor
     func testComingBackFromTheDetailKeepsTheList() throws {
-        let app = launchApp()
         // Volver del detalle no puede costar otra carga: el .task de la lista se dispara
-        // otra vez al reaparecer, y por eso el view model solo carga si está en idle.
-        let cell = app.buttons["character-1"]
-        XCTAssertTrue(cell.waitForExistence(timeout: 5))
+        // otra vez al reaparecer, y por eso el view model solo carga si está en idle. Se
+        // baja hasta la segunda página antes de entrar porque es lo que hace la prueba
+        // observable: si al volver se recargara, la lista volvería a la primera página y
+        // el personaje 21 —que solo existe en la segunda— habría desaparecido.
+        let app = launchApp()
+        XCTAssertTrue(app.buttons["character-1"].waitForExistence(timeout: 5))
+        let cell = app.buttons["character-21"]
+        scroll(app, untilExists: cell)
         cell.tap()
-        XCTAssertTrue(app.navigationBars["Rick Sanchez"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Supernova"].waitForExistence(timeout: 5))
 
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
-        XCTAssertTrue(app.buttons["character-1"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["character-2"].exists)
+        XCTAssertTrue(
+            app.buttons["character-21"].waitForExistence(timeout: 5),
+            "Coming back from the detail lost the page the user had scrolled to"
+        )
     }
 
     @MainActor
@@ -115,7 +139,12 @@ final class RickAndMortyUITests: XCTestCase {
         // Sin resultados no es un fallo: la pantalla que sale ofrece quitar lo que se
         // buscó, no reintentar. Y dice "búsqueda", no "filtros": no se ha tocado ninguno
         XCTAssertTrue(app.staticTexts["No matches"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Clear search"].exists)
+        let clear = app.buttons["Clear search"]
+        XCTAssertTrue(clear.exists)
+
+        // Y ese botón devuelve la lista entera
+        clear.tap()
+        XCTAssertTrue(app.buttons["character-1"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -134,6 +163,27 @@ final class RickAndMortyUITests: XCTestCase {
         // Bird Person, que es el 7, sí
         XCTAssertTrue(app.buttons["character-7"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["character-1"].exists)
+    }
+
+    @MainActor
+    func testClearingTheFiltersBringsTheWholeListBack() throws {
+        let app = launchApp()
+        XCTAssertTrue(app.buttons["character-1"].waitForExistence(timeout: 5))
+
+        // Sin nada puesto, "Clear" no hace nada y no se puede tocar
+        app.navigationBars.buttons["Filters"].tap()
+        let clear = app.buttons["Clear"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5))
+        XCTAssertFalse(clear.isEnabled, "Clear must be disabled while no filter is active")
+
+        // Con un filtro puesto se enciende, y al tocarlo la lista vuelve entera
+        app.buttons["filter-status"].tap()
+        app.buttons["Dead"].tap()
+        XCTAssertTrue(clear.isEnabled)
+        clear.tap()
+        app.buttons["Done"].tap()
+
+        XCTAssertTrue(app.buttons["character-1"].waitForExistence(timeout: 5))
     }
 
     // MARK: - Dynamic Type
@@ -183,5 +233,22 @@ final class RickAndMortyUITests: XCTestCase {
         // Y se descarta tocándolo
         notice.tap()
         XCTAssertTrue(notice.waitForNonExistence(timeout: 3))
+    }
+
+    // MARK: - Helpers
+
+    // Baja por la rejilla hasta que la celda pedida exista, con un tope: la rejilla es
+    // perezosa, así que una celda que aún no se ha creado no existe para XCTest, y la
+    // única forma de llegar a ella es hacer scroll como lo haría el usuario. Con veinte
+    // celdas por página y dos por fila, ocho pantallas sobran.
+    @MainActor
+    private func scroll(_ app: XCUIApplication, untilExists element: XCUIElement, maxSwipes: Int = 8) {
+        for _ in 0..<maxSwipes {
+            // Un respiro entre gesto y gesto, para que una página que se acabe de pedir
+            // llegue a pintarse antes de dar el siguiente
+            if element.waitForExistence(timeout: 1) { return }
+            app.swipeUp()
+        }
+        _ = element.waitForExistence(timeout: 5)
     }
 }
