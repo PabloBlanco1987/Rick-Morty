@@ -4,6 +4,34 @@ App de iOS para navegar por el universo de Rick & Morty: rejilla paginada de
 personajes, búsqueda y filtros contra el servidor, y ficha de detalle con los episodios
 en los que sale cada personaje.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/list-dark.webp">
+    <img alt="Listado de personajes" src="docs/screenshots/list-light.webp" width="150">
+  </picture>&nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/detail-dark.webp">
+    <img alt="Ficha de detalle" src="docs/screenshots/detail-light.webp" width="150">
+  </picture>&nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/filters-dark.webp">
+    <img alt="Filtros por estado, género y especie" src="docs/screenshots/filters-light.webp" width="150">
+  </picture>&nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/search-dark.webp">
+    <img alt="Búsqueda en el servidor combinada con los filtros" src="docs/screenshots/search-light.webp" width="150">
+  </picture>&nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/empty-dark.webp">
+    <img alt="Estado vacío con la acción para limpiar búsqueda y filtros" src="docs/screenshots/empty-light.webp" width="150">
+  </picture>&nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/refresh-failed-dark.webp">
+    <img alt="Aviso de refresco fallido conservando la lista" src="docs/screenshots/refresh-failed-light.webp" width="150">
+  </picture>
+</p>
+<p align="center"><sub>Listado · Detalle · Filtros · Búsqueda · Vacío · Refresco fallido — iPhone 17, iOS 26. Las capturas siguen el tema de GitHub: en oscuro se ve la app en oscuro.</sub></p>
+
 SwiftUI + MVVM sobre un núcleo Clean de tres capas, **sin una sola dependencia de
 terceros**, con caché de imágenes propia de dos niveles y 212 pruebas automatizadas.
 
@@ -89,9 +117,10 @@ implementa **Data**. Esa inversión es lo que permite que Domain compile sin con
 red y que cambiar la fuente de datos no toque nada por encima de un fichero.
 
 `AppDependencies` es la única raíz de composición: el único sitio donde se nombran los
-tipos concretos del grafo de datos. Todo lo que cruza una frontera de capa —el
-repositorio que usa el dominio, el cliente HTTP que usa el data source— es un protocolo,
-que es justo lo que hace que los tests de interfaz puedan arrancar la app entera con
+tipos concretos del grafo de datos. Lo que cruza hacia la capa de datos —el repositorio
+que usa el dominio, el cliente HTTP que usa el data source— es un protocolo; los casos de
+uso son structs que envuelven ese repositorio y se sustituyen por debajo, sin protocolo
+propio. Es justo lo que hace que los tests de interfaz puedan arrancar la app entera con
 datos en memoria sin que ninguna capa se entere.
 
 La única pieza que no entra por ahí es la caché de imágenes, que viaja por el entorno de
@@ -116,8 +145,9 @@ CharacterListView → CharacterListViewModel → FetchCharactersUseCase
 **Errores tipados de punta a punta.** Todo el proyecto usa `throws(AppError)` en lugar
 de `throws`. Quien llama puede hacer un `switch` exhaustivo sobre lo que puede fallar en
 vez de recibir un `any Error` sobre el que solo cabe adivinar. `URLError`,
-`DecodingError` y los códigos HTTP se traducen a `AppError` dentro de la capa de datos y
-no salen nunca de ahí.
+`DecodingError` y los códigos HTTP se traducen a `AppError` dentro de la capa de datos; de
+ahí solo sale, como dato, el número de un `.server(statusCode:)`, y lo único que se decide
+con él es si un 5xx merece reintento.
 
 **El límite de peticiones (429) es un caso propio.** La API va detrás de Cloudflare y
 responde 429 en cuanto se le piden varias páginas seguidas, que es exactamente lo que
@@ -205,7 +235,8 @@ que luego tumba la carga de la página siguiente.
 Los 120 ms no aguantan un *fling*, en el que cada celda pasa por pantalla en unos 300 ms:
 por eso, **mientras el scroll va lanzado** (`onScrollPhaseChange`, por encima de una
 velocidad) **no sale nada a la red**. Lo que ya está en memoria o en disco sigue
-apareciendo; solo se retiene la salida, y la pausa caduca sola por si nadie la levanta.
+apareciendo; solo se retiene la salida, y la pausa caduca sola al segundo y medio, por si
+nadie la levanta.
 
 Y para que a velocidad de lectura las celdas aparezcan ya con su imagen, **la página que
 acaba de llegar se precalienta a disco** mientras el usuario todavía lee la anterior: en
@@ -230,9 +261,11 @@ Dos reglas que sigue toda la suite:
   cada treinta en integración continua. Los pocos tests que sí miran el reloj de verdad
   —el cubo de fichas y el freno del `RateLimiter`, la pausa que caduca sola y la que un
   temporizador viejo no puede levantar en `DownloadQueue`, el asentamiento de una celda en
-  `ImageCache`, y `doesNotBrakeWhenTheUserTakesTheirTime`— prueban precisamente que pase
-  el tiempo, y lo hacen con márgenes que una máquina lenta solo puede agrandar: dormir de
-  más no puede romperlos, y dormir de menos no puede pasar.
+  `ImageCache` y que un precalentamiento no lo espera, y
+  `doesNotBrakeWhenTheUserTakesTheirTime`— prueban precisamente que pase el tiempo, o que
+  no pase, con márgenes holgados en los dos sentidos: donde se espera, dormir de más no
+  puede romperlos y dormir de menos no puede pasar; donde no se espera, el tope queda un
+  orden de magnitud por encima de lo que tarda la operación.
 - **Las carreras se prueban congelando, no adivinando.** El repositorio de mentira puede
   retener una petición en un `AsyncGate` mientras el test cambia el criterio, refresca o
   pide otra página, y soltarla después: así se comprueba qué se hace con una respuesta

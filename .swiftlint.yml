@@ -1,6 +1,6 @@
-# SwiftLint configuration for RickAndMorty.
-# Tuned to the style already present in the project: Swift 6, SwiftUI, a
-# three-layer core (Domain / Data / Presentation) and Swift Testing suites.
+# Configuración de SwiftLint para RickAndMorty.
+# Ajustada al estilo que ya tiene el proyecto: Swift 6, SwiftUI, un núcleo de tres
+# capas (Domain / Data / Presentation) y suites de Swift Testing.
 
 included:
   - RickAndMorty
@@ -12,8 +12,8 @@ excluded:
   - DerivedData
   - build
 
-# Opt-in rules that earn their place here. The rest are left out on purpose so
-# the linter flags real problems rather than personal preferences.
+# Reglas opt-in que se han ganado estar aquí. El resto se dejan fuera a propósito, para
+# que el linter señale problemas de verdad y no preferencias personales.
 opt_in_rules:
   - array_init
   - closure_end_indentation
@@ -55,8 +55,8 @@ opt_in_rules:
   - yoda_condition
 
 disabled_rules:
-  # House style keeps a trailing comma in multi-line literals: adding an entry
-  # touches one line and the diff stays clean.
+  # El estilo de la casa deja coma final en los literales multilínea: añadir una
+  # entrada toca una sola línea y el diff queda limpio.
   - trailing_comma
 
 line_length:
@@ -78,7 +78,7 @@ function_body_length:
   warning: 50
   error: 80
 
-# `id`, `to` and friends are legitimate in models and view code.
+# `id`, `to` y compañía son legítimos en modelos y en código de vistas.
 identifier_name:
   min_length:
     warning: 2
@@ -101,7 +101,7 @@ cyclomatic_complexity:
   warning: 10
   error: 15
 
-# `(sut, stub, spy)` is the natural return of a test helper.
+# `(sut, stub, spy)` es lo que devuelve de forma natural un helper de test.
 large_tuple:
   warning: 3
   error: 4

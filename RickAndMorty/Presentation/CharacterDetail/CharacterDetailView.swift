@@ -63,7 +63,7 @@ struct CharacterDetailView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Cabecera
 
     @ViewBuilder
     private var header: some View {
@@ -88,7 +88,7 @@ struct CharacterDetailView: View {
         }
     }
 
-    // MARK: - Information
+    // MARK: - Información
 
     @ViewBuilder
     private var facts: some View {
@@ -142,7 +142,7 @@ struct CharacterDetailView: View {
         }
     }
 
-    // MARK: - Episodes
+    // MARK: - Episodios
 
     @ViewBuilder
     private var episodes: some View {

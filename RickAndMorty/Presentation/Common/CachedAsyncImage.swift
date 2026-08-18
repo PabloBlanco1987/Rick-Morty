@@ -178,7 +178,7 @@ extension EnvironmentValues {
     @Entry var imageCache: ImageCache = .shared
 }
 
-#Preview("Placeholder y carga") {
+#Preview("Placeholder and loading") {
     HStack(spacing: 16) {
         CachedAsyncImage(url: nil)
             .frame(width: 120, height: 120)
