@@ -27,12 +27,16 @@ struct FetchCharacterDetailUseCase: Sendable {
         // personaje cuando venía de la lista lo resuelve CharacterDetailViewModel, que
         // conserva lo que ya tenía y enseña el error solo en la sección de episodios.
         //
-        // Lo que queda sin cubrir es entrar directamente al detalle —un enlace profundo,
-        // una notificación— y que fallen solo los episodios: ahí no hay nada que
-        // conservar y se pierde también el personaje, que sí había llegado. Arreglarlo
-        // bien pide devolver un resultado parcial (el personaje más el estado de sus
-        // episodios) y es más tipo del que necesita esta pantalla hoy. Ver README,
-        // "Límites conocidos".
+        // TODO: [Fuera de alcance · README §8] Detalle por enlace profundo con episodios
+        // caídos.
+        // Motivo: entrando directamente al detalle —un enlace profundo, una notificación—
+        // y fallando solo los episodios, no hay nada que conservar y se pierde también el
+        // personaje, que sí había llegado. Arreglarlo bien pide devolver un resultado
+        // parcial, y es más tipo del que necesita esta pantalla hoy, que solo se abre
+        // desde la lista.
+        // Preparado: entraría como un `CharacterDetail` que llevara el personaje más el
+        // estado de sus episodios (un `Result<[Episode], AppError>`), sin tocar el
+        // repositorio: el view model ya separa la cabecera de la sección de episodios.
         let episodes = try await repository.episodes(ids: character.episodeIDs)
         return CharacterDetail(character: character, episodes: episodes)
     }

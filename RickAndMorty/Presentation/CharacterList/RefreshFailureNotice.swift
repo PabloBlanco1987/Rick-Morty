@@ -22,27 +22,31 @@ struct RefreshFailureNotice: View {
         // Es un botón entero, y no un texto con una cruz aparte, para que descartarlo
         // sea tocar en cualquier sitio
         Button(action: dismiss) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.medium) {
                 Image(systemName: error.systemImage)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.labelStrong)
                     .foregroundStyle(.secondary)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
                     Text(error.title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.labelStrong)
                     Text(.characterListRefreshFailedMessage)
-                        .font(.footnote)
+                        .font(.message)
                         .foregroundStyle(.secondary)
                 }
                 .fixedSize(horizontal: false, vertical: true)
 
                 Spacer(minLength: 0)
             }
-            .padding(14)
-            .frame(maxWidth: 560)
-            .background(.regularMaterial, in: .rect(cornerRadius: 14))
+            .padding(Theme.Spacing.large)
+            .frame(maxWidth: Theme.Layout.noticeMaxWidth)
+            // El material y el borde son suyos y no de `cardSurface`: este aviso no es una
+            // superficie de contenido, es una pieza que flota por encima del listado
+            // mientras se lee y se va sola. El desenfoque es lo que lo separa de lo que
+            // tiene debajo sin necesidad de una sombra.
+            .background(.regularMaterial, in: .rect(cornerRadius: Theme.Radius.card))
             .overlay {
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: Theme.Radius.card)
                     .strokeBorder(.separator, lineWidth: 0.5)
             }
         }
@@ -63,7 +67,7 @@ struct RefreshFailureNotice: View {
 }
 
 #Preview {
-    VStack(spacing: 16) {
+    VStack(spacing: Theme.Spacing.large) {
         RefreshFailureNotice(error: .offline) {}
         RefreshFailureNotice(error: .server(statusCode: 503)) {}
     }

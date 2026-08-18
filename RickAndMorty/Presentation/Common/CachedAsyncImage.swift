@@ -114,8 +114,8 @@ struct CachedAsyncImage<Placeholder: View>: View {
                 // Solo se funde lo que ha habido que ir a buscar. Lo que ya estaba en
                 // memoria aparece de golpe: al volver hacia atrás en el scroll un
                 // fundido se lee como un parpadeo, no como una entrada.
-                let shouldFade = loaded.origin != .memory && !reduceMotion
-                withAnimation(shouldFade ? .easeOut(duration: 0.2) : nil) {
+                let shouldFade = loaded.origin != .memory
+                withAnimation(shouldFade ? Theme.Motion.fade(reduceMotion: reduceMotion) : nil) {
                     image = loaded.image
                 }
                 return
@@ -136,13 +136,14 @@ struct CachedAsyncImage<Placeholder: View>: View {
         // un icono de error cada dos es más ruido que información, y el personaje
         // —que es el contenido— sigue ahí con su nombre y su estado.
         //
-        // A partir de aquí ese hueco no se rellena hasta que el usuario lo saque de
-        // pantalla y lo vuelva a meter. Se deja así a sabiendas: la alternativa buena
+        // TODO: [Fuera de alcance · README §8] Reintento de imágenes desde la lista.
+        // Motivo: a partir de aquí ese hueco no se rellena hasta que el usuario lo saque
+        // de pantalla y lo vuelva a meter. Se deja así a sabiendas: la alternativa buena
         // —que reintentar la lista reintente también las imágenes que fallaron— necesita
-        // una señal de reintento que baje desde el view model, y entraría como un valor
-        // de entorno que formara parte de la identidad de esta tarea, de modo que
-        // subirlo la volviera a disparar en todas las celdas a la vez. Ver README,
-        // "Límites conocidos".
+        // una señal de reintento que baje desde el view model.
+        // Preparado: entraría como un valor de entorno que formara parte de `Request`,
+        // la identidad de esta tarea, de modo que subirlo la volviera a disparar en todas
+        // las celdas a la vez sin tocar `load()`.
         //
         // No se toca `image`: si la celda ya tenía una imagen y la recarga ha fallado,
         // enseñar la que hay es mejor que vaciar el hueco.
@@ -164,7 +165,7 @@ struct ImagePlaceholder: View {
             .fill(.fill.tertiary)
             .overlay {
                 Image(systemName: "person.fill")
-                    .font(.largeTitle)
+                    .font(.placeholderIcon)
                     .foregroundStyle(.tertiary)
             }
     }
@@ -179,14 +180,14 @@ extension EnvironmentValues {
 }
 
 #Preview("Placeholder and loading") {
-    HStack(spacing: 16) {
+    HStack(spacing: Theme.Spacing.large) {
         CachedAsyncImage(url: nil)
             .frame(width: 120, height: 120)
-            .clipShape(.rect(cornerRadius: 16))
+            .clipShape(.rect(cornerRadius: Theme.Radius.card))
 
         CachedAsyncImage(url: URL(string: "https://rickandmortyapi.com/api/character/avatar/1.jpeg"))
             .frame(width: 120, height: 120)
-            .clipShape(.rect(cornerRadius: 16))
+            .clipShape(.rect(cornerRadius: Theme.Radius.card))
     }
     .padding()
 }

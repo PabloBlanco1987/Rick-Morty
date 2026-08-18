@@ -87,6 +87,8 @@ que no lo tenga.
   las dos únicas animaciones de la app respetando «reducir movimiento».
 - **Un solo idioma, con catálogo**: todos los textos viven en `Localizable.xcstrings`,
   ninguno en el código, y la app se entrega en inglés.
+- **Un sistema de diseño propio**: espaciados, radios, tipografía, chips y superficies
+  salen de un puñado de tokens, y ninguna vista escribe un literal de estilo (§3).
 
 ---
 
@@ -137,6 +139,48 @@ CharacterListView → CharacterListViewModel → FetchCharactersUseCase
    → RetryingHTTPClient → URLSessionHTTPClient → API
    ← Page<Character> ← CharacterMapper ← PageDTO<CharacterDTO>
 ```
+
+### El sistema de diseño
+
+`Presentation/DesignSystem/` es la respuesta a un recuento incómodo: la app tenía **seis
+radios distintos** para cuatro formas, **tres opacidades de verde** que a ojo son la
+misma, y un margen de pantalla que era 16 en el listado y 20 en la ficha. Ninguna de esas
+cosas se ve como un fallo, pero juntas son lo que hace que una app parezca hecha a trozos.
+
+Son tokens y media docena de componentes, y cabe en una tabla:
+
+| Token | Valores | Dónde manda |
+|---|---|---|
+| `Theme.Spacing` | 2 · 4 · 8 · 12 · 16 · 24 · 32 | Todo hueco entre dos elementos |
+| `Theme.Radius` | `chip` 10 · `card` 16 · `hero` 20 | Chips, superficies de contenido, la imagen de la ficha |
+| `Theme.Layout` | Márgenes, anchos máximos, mínimos de columna | Lo que solo significa algo en su sitio |
+| `Theme.Tint` | `accent` + un único relleno al 12% | Chips, iconos, badges |
+| `Theme.Motion` | `fade`, `notice` | Las dos únicas animaciones de la app |
+| `Font.*` | `cardTitle`, `label`, `chipCode`… | Alias sobre *text styles*, nunca puntos |
+
+Encima de los tokens hay lo que se repetía a mano: `.cardSurface()` (el fondo redondeado
+que estaba copiado en siete sitios con dos radios distintos), `.tintedChip(_:in:)`,
+`IconTile`, `InfoRow`, `SectionHeader`, y `ErrorStateView` / `InlineErrorView` —el error a
+pantalla completa estaba duplicado palabra por palabra entre el listado y la ficha—.
+
+Cuatro reglas lo sostienen:
+
+1. **Ninguna vista escribe un literal de estilo.** Si hace falta un número nuevo, o falta
+   un token o sobra el literal.
+2. **Los tokens de texto son alias sobre *text styles*, nunca tamaños en puntos.** Es la
+   condición para que el Dynamic Type siga funcionando hasta AX5 sin tocar nada: un
+   `.system(size: 17)` se queda clavado en 17 aunque el usuario haya pedido 43.
+3. **La escala manda en las distancias entre elementos; los tamaños intrínsecos de un
+   componente viven con él.** El punto del badge y el lado de la caja de un icono son
+   `@ScaledMetric` propios, porque crecen con la letra y no significan nada fuera de ahí.
+4. **El sistema no pelea con la plataforma.** `Form`, `ContentUnavailableView`, los
+   estilos de botón y los materiales se quedan como están; se tokeniza lo que el proyecto
+   ya estaba decidiendo a mano, no lo que iOS ya decide bien.
+
+Lo que se gana no es cosmética: el contraste de los chips deja de depender de que cada
+pantalla se acuerde de poner el texto en primario —lo pone el chip—, la regla de «reducir
+movimiento» pasa de estar escrita en dos ficheros a estar escrita una vez, y la pantalla
+siguiente se monta con piezas en lugar de con literales.
 
 ---
 
@@ -246,7 +290,75 @@ tenía" sin dejar de pintar progresivamente ni bloquear el scroll.
 
 ---
 
-## 6. Pruebas
+## 6. Rendimiento
+
+La pregunta corta es «¿va fluido con los 826?», y la respuesta honesta tiene dos partes:
+qué se ha hecho para que vaya, y qué se ha medido. Lo primero está en el código; lo
+segundo, salvo una excepción, no, y se dice como lo que es: una expectativa razonada, no
+una cifra.
+
+### Qué se ha hecho, y qué resuelve cada cosa
+
+| Técnica | Qué resuelve | Dónde |
+|---|---|---|
+| **Decodificar a la medida de la celda**, fuera del hilo principal | El bitmap no crece con lo que mande el servidor, y el tirón de decodificar no cae en el frame del scroll | `ImageCache.downsample`: ImageIO con `kCGImageSourceShouldCacheImmediately` |
+| **Dos niveles de caché**: bitmaps por tamaño en memoria (`NSCache`, 50 MB) y bytes originales en disco | Volver atrás no cuesta ni descarga ni decodificación; otro tamaño cuesta una decodificación, no otra red | `ImageCache` |
+| **Deduplicación por URL** con recuento de interesados | Dos celdas con la misma imagen abren una conexión, y si el último interesado se va, la descarga se cancela con él | `ImageCache.joinDownload` / `leaveDownload` |
+| **Cancelación por visibilidad real** | Salir de pantalla cancela la descarga: `LazyVGrid` no destruye las celdas, así que `.task` sola no se cancelaría nunca | `CachedAsyncImage`: `.onScrollVisibilityChange` + `.task(id:)` |
+| **Cola LIFO de cuatro**, visible antes que precalentamiento | Se pinta primero lo que se está mirando, no la cola de lo que quedó atrás | `DownloadQueue` |
+| **Asentamiento de 120 ms** y **pausa durante el fling** | No se gasta petición ni cupo en celdas que pasan sin llegar a verse | `ImageCache.settleDelay`, `CharacterListView.onScrollPhaseChange` |
+| **Prefetch de la página siguiente** ocho celdas antes del final, con 400 ms entre páginas | La página llega antes de tocar el fondo, y un gesto rápido no encadena cinco peticiones | `CharacterListViewModel` |
+| **Precalentamiento a disco** de la página recién llegada, en secuencia y con prioridad baja | Las celdas de la pantalla siguiente aparecen ya con imagen sin competir con las visibles | `CharacterListView` → `ImageCache.warm` |
+| **Caché de respuestas** (`URLCache` con ETag y `Cache-Control` de 90 días) | Volver del detalle o repetir una búsqueda no cuestan petición; el *pull to refresh* revalida con una condicional (304) | `URLSession.rickAndMorty`, `Freshness` |
+| **Ritmo adaptativo** compartido por JSON e imágenes | Un cubo de fichas (8/s) evita ganarse el 429; si aun así llega, freno con `Retry-After`, ritmo a la mitad y recuperación gradual | `RateLimiter` |
+| **Espera de 350 ms tras la última tecla** | Escribir «rick» es una petición, no cuatro | `CharacterListViewModel.searchDebounce` |
+| **Celdas `Equatable`** (`.equatable()`) | Al añadir una página se construyen 20 cuerpos, no 820: las demás se descartan comparando structs | `CharacterCard` |
+
+### Qué se ha medido y qué no
+
+Nada de lo anterior ha pasado por Instruments. Lo único medido con el reloj es la
+velocidad de deceleración que separa un *fling* de un *flick* de lectura —unos 5,5 pt/ms
+frente a menos de 1, en el simulador—, porque la unidad de
+`ScrollPhaseChangeContext.velocity` no está documentada y había que mirarla. Los números
+que aparecen por el código y por este documento —25 KB comprimidos frente a 360 KB de
+bitmap, unos 145 avatares en los 50 MB de memoria, unos 20 MB de disco para los 826— son
+aritmética sobre los 300×300 px que sirve la API, no medidas.
+
+La expectativa, razonada: el scroll no debería dar tirones, porque nada caro pasa en el
+hilo principal —la decodificación va en `@concurrent` y con la caché inmediata de ImageIO,
+y las celdas ya construidas no se reconstruyen—; la memoria debería quedarse por debajo
+del techo de 50 MB de la caché más el coste de 826 structs, que es despreciable; y la red,
+tras un recorrido completo a velocidad de lectura, debería estar en 42 páginas de JSON
+más 826 imágenes, sin un solo 429. Es una expectativa: se sostiene en el diseño y en los
+tests unitarios de cada pieza, no en una traza.
+
+### Qué mediría con más tiempo
+
+En este orden, porque cada medida confirma o desmiente algo de lo de arriba:
+
+1. **Hitches al hacer scroll**, con la plantilla *Animation Hitches* de Instruments (y la
+   de *SwiftUI* para ver qué cuerpos se reconstruyen), en dispositivo y dos veces: con
+   la caché fría y con la caché caliente, bajando hasta el 826. Es la medida que dice si
+   el hilo principal va limpio; si hay hitches, *Time Profiler* filtrado a ese hilo dice
+   de quién son.
+2. **Huella de memoria con la lista entera cargada** y todos los avatares visitados:
+   *Allocations* y el gráfico de memoria, buscando dos cosas: que el pico se quede cerca
+   del techo de `NSCache` —es decir, que el `cost` con el que se inserta cada bitmap
+   (`bytesPerRow × height`) coincida con lo que ocupa de verdad— y que baje al recibir
+   un aviso de memoria.
+3. **Peticiones por recorrido completo.** La app ya trae la traza (`NetworkLogger`, solo
+   en DEBUG): contar peticiones y 429 en un recorrido a velocidad de lectura y en otro a
+   base de *flings*, y compararlo con la cuenta esperada. Es la métrica que valida el
+   asentamiento, la pausa y el `RateLimiter`, que son las tres decisiones más opinables
+   del proyecto.
+4. **Tamaño de `Caches/ImageCache`** tras ese mismo recorrido, para confirmar los ~20 MB
+   y decidir con datos si la poda del §8 sube de prioridad.
+5. **Arranque en frío** hasta la primera rejilla pintada, con `os_signpost` en
+   `AppDependencies` y en el `.task` de la lista.
+
+---
+
+## 7. Pruebas
 
 **212 pruebas**: 201 unitarias en **Swift Testing** repartidas en 26 suites, y 11 de
 interfaz en XCTest.
@@ -294,26 +406,68 @@ Lo que se cubre, por capas:
 
 ---
 
-## 7. Límites conocidos
+## 8. Límites conocidos
 
-Cosas que faltan **a sabiendas**, no por descuido. Están comentadas en el código, en el
-punto exacto donde entrarían:
+Cosas que faltan **a sabiendas**, no por descuido. Cada una está comentada en el código,
+en el punto exacto donde entraría, como un `TODO: [Fuera de alcance · README §8]` con
+tres partes —qué falta, por qué se decidió no hacerlo y por dónde entraría—, de modo que
+`grep -rn "TODO:" RickAndMorty` las lista a las tres y no encuentra ninguna más:
 
-- **Poda de la caché de disco.** Hoy el directorio crece sin límite y solo lo vacía el
-  sistema cuando necesita espacio. Los 826 avatares son unos 20 MB en el peor caso, así
-  que cabe entero; entraría como un `trim(to:)` al pasar a segundo plano, ordenando por
-  fecha de último acceso.
-- **Reintento de imágenes desde la lista.** Una imagen que agota sus reintentos deja el
-  hueco hasta que la celda sale y vuelve a entrar en pantalla. Entraría como una señal de
-  reintento en el entorno que formara parte de la identidad de la tarea de carga.
-- **Detalle por enlace profundo con episodios caídos.** Llegando desde la lista, un fallo
-  de episodios conserva el personaje. Entrando directamente al detalle no hay nada que
-  conservar y se pierde también el personaje, que sí había llegado; hacerlo bien pide un
-  tipo de resultado parcial.
+- **Poda de la caché de disco**
+  ([`ImageCache.swift`](RickAndMorty/Data/Cache/ImageCache.swift)). Hoy el directorio
+  crece sin límite y solo lo vacía el sistema cuando necesita espacio. Los 826 avatares
+  son unos 20 MB en el peor caso, así que cabe entero; entraría como un `trim(to:)` al
+  pasar a segundo plano, ordenando por fecha de último acceso.
+- **Reintento de imágenes desde la lista**
+  ([`CachedAsyncImage.swift`](RickAndMorty/Presentation/Common/CachedAsyncImage.swift)).
+  Una imagen que agota sus reintentos deja el hueco hasta que la celda sale y vuelve a
+  entrar en pantalla. Entraría como una señal de reintento en el entorno que formara
+  parte de la identidad de la tarea de carga.
+- **Detalle por enlace profundo con episodios caídos**
+  ([`FetchCharacterDetailUseCase.swift`](RickAndMorty/Domain/UseCases/FetchCharacterDetailUseCase.swift)).
+  Llegando desde la lista, un fallo de episodios conserva el personaje. Entrando
+  directamente al detalle no hay nada que conservar y se pierde también el personaje, que
+  sí había llegado; hacerlo bien pide un tipo de resultado parcial.
 
 ---
 
-## 8. Convenciones
+## 9. Siguientes pasos
+
+El §8 dice qué falta a sabiendas; esto dice hacia dónde seguiría, y por qué en este
+orden. El criterio: primero lo que convierte expectativas en datos, después lo que el
+diseño ya tiene preparado, y al final lo que abre superficie nueva.
+
+1. **Medir antes de tocar** (las cinco medidas del §6). El proyecto tiene decisiones —los
+   120 ms de asentamiento, la velocidad de *fling*, las ocho fichas por segundo— que se
+   calibraron con criterio pero sin traza. Con los datos delante, cambiaría antes un
+   número que una pieza; sin ellos, todo lo demás se prioriza a ojo.
+2. **Cerrar los tres límites del §8**, en el orden en que están: la poda de disco es la
+   más barata y la que un teléfono con poco espacio agradece; el reintento desde la lista
+   es la que el usuario ve; y el resultado parcial del detalle solo importa cuando exista
+   una entrada al detalle que no sea la lista, que es el punto siguiente.
+3. **Enlace profundo al detalle** (`rickandmorty://character/1`, y de ahí *universal
+   links*). El detalle ya se pide por id y no da por hecho que venga de la lista: está
+   diseñado para esto. Es un `onOpenURL` en `RootView` que empuje el destino a la pila,
+   y es lo que le da sentido al tercer límite.
+4. **iPad y pantalla partida**, con `NavigationSplitView`: la rejilla a la izquierda y el
+   detalle a la derecha. La navegación ya va por valor y el detalle ya no cuenta con
+   destruirse al volver —`onAppear` solo carga la primera vez—, así que el trabajo es de
+   layout, no de estado.
+5. **Contar el «sin conexión»**. `URLCache` ya sirve una página vista sin tocar la red y
+   las imágenes ya están en disco, así que arrancar sin red con lo que se vio ayer sale
+   casi gratis; lo que falta es que la app lo diga —un aviso como el de refresco fallido,
+   con «mostrando lo guardado»— en vez de dejar que se descubra por un error de red.
+6. **Un segundo idioma**, para cobrar el catálogo que hoy es una columna sola por diseño
+   (§4). Traducir es lo de menos; lo que se comprueba es que ninguna vista se rompe con
+   textos un 30 % más largos, y el recorrido de Dynamic Type ya hace ese trabajo en el
+   otro eje.
+7. **Integración continua**: compilar, pasar la suite y SwiftLint en cada *push*. El
+   `xcodebuild test` del §1 es el flujo entero; lo que falta es el fichero que lo
+   ejecute lejos de esta máquina.
+
+---
+
+## 10. Convenciones
 
 - **Código, identificadores y textos de la interfaz en inglés.** Los textos, además,
   nunca en el código: en `Localizable.xcstrings`, con su comentario. Los comentarios y
@@ -322,5 +476,14 @@ punto exacto donde entrarían:
 - **Los comentarios explican decisiones, no sintaxis.** Si un comentario se limita a
   repetir lo que hace la línea de abajo, sobra. Los que hay están donde alguien —incluido
   yo dentro de seis meses— se preguntaría «¿y esto por qué está así?».
+- **Un `TODO` es un límite asumido, no deuda.** Lleva el marcador
+  `[Fuera de alcance · README §8]`, sus tres partes y su entrada en el §8; si algo no cabe
+  en esas tres partes, no es un TODO. Por eso SwiftLint no lo cuenta como aviso (`todo:
+  only: [FIXME]`) y sí cuenta un `FIXME`, que es la marca de lo que está roto y hay que
+  resolver.
+- **Ningún literal de estilo en una vista.** Espaciados, radios, fuentes, tintes y
+  animaciones salen de `Theme` y de los tokens de `Font`; si hace falta un valor que no
+  existe, se añade al sistema y no a la vista. Es lo que mantiene las pantallas parecidas
+  entre sí sin que nadie tenga que acordarse de nada.
 - **SwiftLint con reglas *opt-in* elegidas una a una**, para que el linter señale
   problemas de verdad y no preferencias personales. El proyecto compila con cero avisos.

@@ -365,12 +365,15 @@ actor ImageCache {
     // se respaldan en iCloud ni tiene sentido que el sistema los conserve cuando le
     // falte espacio.
     //
-    // Falta podar el directorio: hoy crece sin límite y solo lo vacía el sistema cuando
+    // TODO: [Fuera de alcance · README §8] Poda de la caché de disco.
+    // Motivo: hoy el directorio crece sin límite y solo lo vacía el sistema cuando
     // necesita sitio. Se deja así a sabiendas porque los 826 avatares de la API son unos
     // 20 MB en el peor caso —cabe entero— y una poda LRU hecha con prisa borra justo lo
-    // que se está usando. Entraría como un `trim(to:)` llamado al pasar la app a segundo
-    // plano, ordenando los ficheros por .contentAccessDateKey y borrando los más viejos
-    // hasta bajar del límite. Ver README, "Límites conocidos".
+    // que se está usando.
+    // Preparado: entraría como un `trim(to:)` en este actor, llamado al pasar la app a
+    // segundo plano, ordenando los ficheros por .contentAccessDateKey y borrando los más
+    // viejos hasta bajar del límite. La lectura y la escritura no cambian: ya pasan las
+    // dos por `fileURL(for:)`.
     private static var defaultDirectory: URL {
         URL.cachesDirectory.appending(path: "ImageCache", directoryHint: .isDirectory)
     }

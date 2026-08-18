@@ -59,6 +59,16 @@ disabled_rules:
   # entrada toca una sola línea y el diff queda limpio.
   - trailing_comma
 
+# La regla `todo` da por hecho que un TODO es deuda olvidada, y aquí no lo es: los TODO
+# de este proyecto son los límites asumidos del README §8, y cada uno lleva tres partes
+# —qué falta, por qué se decidió no hacerlo y por dónde entraría— más la referencia a
+# esa sección, para que se lean en las dos direcciones. Son documentación deliberada y
+# localizable con `grep TODO`, no un «ya lo haré». Por eso la regla se acota en vez de
+# apagarse: sigue avisando en FIXME, que es la marca de lo que está roto y sí hay que
+# resolver, y ahí es donde tiene que doler.
+todo:
+  only: [FIXME]
+
 line_length:
   warning: 120
   error: 160

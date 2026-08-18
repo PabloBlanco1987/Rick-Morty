@@ -85,7 +85,7 @@ struct CharacterListView: View {
 
     private func grid(_ characters: [Character]) -> some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
+            LazyVGrid(columns: columns, spacing: Theme.Layout.gridSpacing) {
                 ForEach(characters) { character in
                     // La navegación va por valor: la celda dice a qué personaje lleva y
                     // es RootView, que es quien conoce el grafo de dependencias, la que
@@ -108,7 +108,7 @@ struct CharacterListView: View {
 
             footer
         }
-        .contentMargins(16, for: .scrollContent)
+        .contentMargins(Theme.Layout.screenMargin, for: .scrollContent)
         .refreshable { await viewModel.refresh() }
         // El aviso de refresco fallido, entre el título y la rejilla: es donde estaba el
         // indicador de refresco del que viene. Como inset del área segura y no como
@@ -119,15 +119,15 @@ struct CharacterListView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             if let error = viewModel.refreshFailure {
                 RefreshFailureNotice(error: error) { viewModel.dismissRefreshFailure() }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, Theme.Layout.screenMargin)
+                    .padding(.bottom, Theme.Spacing.small)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         // Con "reducir movimiento" el aviso aparece y se va sin animar, igual que el
         // fundido de las imágenes: la regla de la app es no mover nada, ni siquiera un
         // desvanecido, cuando el usuario ha pedido que no se mueva.
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: viewModel.refreshFailure)
+        .animation(Theme.Motion.notice(reduceMotion: reduceMotion), value: viewModel.refreshFailure)
         // Precalienta la página que acaba de llegar mientras el usuario lee la anterior.
         // Con id: cuando llega otra página se cancela el calentamiento de la anterior y
         // arranca el suyo, así que un fling que encadena páginas solo calienta la última,
@@ -173,25 +173,17 @@ struct CharacterListView: View {
     private var footer: some View {
         if let error = viewModel.nextPageError {
             // El fallo de una página va aquí, debajo de lo que ya se ve, y no en una
-            // pantalla de error: las páginas cargadas siguen siendo válidas.
-            VStack(spacing: 12) {
-                Text(error.title)
-                    .font(.subheadline.weight(.semibold))
-                Text(error.message)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Button(.characterListRetryButton) { viewModel.retryNextPage() }
-                    .buttonStyle(.bordered)
+            // pantalla de error: las páginas cargadas siguen siendo válidas. Es la misma
+            // tarjeta que usa la ficha cuando le fallan los episodios, por lo mismo: lo
+            // que hay en pantalla sigue valiendo y el fallo es de una parte.
+            InlineErrorView(error: error, retryTitle: .characterListRetryButton) {
+                viewModel.retryNextPage()
             }
-            // Sobre el contenedor y no solo sobre el mensaje: con tamaños de
-            // accesibilidad el título también se parte en dos líneas
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
+            .padding(.vertical, Theme.Spacing.xLarge)
         } else if viewModel.isLoadingNextPage {
             ProgressView()
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
+                .padding(.vertical, Theme.Spacing.xLarge)
         }
         // Cuando ya no quedan páginas no se pone nada. Un "no hay más" al final de una
         // lista de 826 personajes es ruido: que se acabe ya se ve.
@@ -201,8 +193,10 @@ struct CharacterListView: View {
         // Con tamaños de accesibilidad el nombre necesita el ancho entero, así que el
         // grid pasa a una columna antes que recortar texto. Es adaptive y no un número
         // fijo de columnas para que el iPad y el modo horizontal salgan gratis.
-        let minimum: CGFloat = dynamicTypeSize.isAccessibilitySize ? 280 : 150
-        return [GridItem(.adaptive(minimum: minimum), spacing: 16)]
+        let minimum = dynamicTypeSize.isAccessibilitySize
+            ? Theme.Layout.accessibilityGridMinimumColumnWidth
+            : Theme.Layout.gridMinimumColumnWidth
+        return [GridItem(.adaptive(minimum: minimum), spacing: Theme.Layout.gridSpacing)]
     }
 
     // MARK: - Estados
@@ -242,27 +236,20 @@ struct CharacterListView: View {
 
     private var skeleton: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
-                // Ocho: las que caben en una pantalla larga. Menos dejaría un hueco
-                // debajo que delataría que aún no hay nada.
-                ForEach(0..<8, id: \.self) { _ in
+            LazyVGrid(columns: columns, spacing: Theme.Layout.gridSpacing) {
+                ForEach(0..<Theme.Layout.skeletonCardCount, id: \.self) { _ in
                     CharacterCardSkeleton()
                 }
             }
         }
-        .contentMargins(16, for: .scrollContent)
+        .contentMargins(Theme.Layout.screenMargin, for: .scrollContent)
         .scrollDisabled(true)
         .redacted(reason: .placeholder)
     }
 
     private func errorView(_ error: AppError) -> some View {
-        ContentUnavailableView {
-            Label(error.title, systemImage: error.systemImage)
-        } description: {
-            Text(error.message)
-        } actions: {
-            Button(.characterListRetryButton) { viewModel.retry() }
-            .buttonStyle(.borderedProminent)
+        ErrorStateView(error: error, retryTitle: .characterListRetryButton) {
+            viewModel.retry()
         }
     }
 }
