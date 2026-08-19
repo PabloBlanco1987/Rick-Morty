@@ -1,9 +1,8 @@
 import Foundation
 
-// Trae una página de personajes, con filtro si hace falta.
-// No hay un SearchCharactersUseCase aparte: buscar es listar con un filtro puesto y
-// las reglas de paginación son las mismas. Separarlos sería duplicar esa lógica
-// solo para tener otro nombre.
+/// Fetches a page of characters, filter optional. No separate SearchCharactersUseCase:
+/// searching is listing with a filter set, same pagination rules — splitting them would
+/// just duplicate that logic for another name.
 struct FetchCharactersUseCase: Sendable {
     private let repository: any CharacterRepository
 
@@ -11,9 +10,8 @@ struct FetchCharactersUseCase: Sendable {
         self.repository = repository
     }
 
-    // freshness solo lo cambia el pull to refresh; el resto de cargas se conforman con lo
-    // que haya guardado, que es lo que hace que volver del detalle o repetir una búsqueda
-    // no cueste una petición
+    // Only pull-to-refresh changes freshness; every other load accepts what's cached,
+    // which is why returning from the detail or repeating a search costs no request.
     func execute(
         page: Int,
         filter: CharacterFilter,

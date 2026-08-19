@@ -1,9 +1,8 @@
 import Foundation
 
-// Una página de una colección paginada.
-// Pagino por número de página y no arrastrando el info.next de la API: meter una URL
-// en el dominio significa colar el transporte en todas las capas de arriba, y encima
-// no puedes construir el tipo en un test sin inventarte un host.
+/// A page of a paginated collection, addressed by page number rather than the API's
+/// `info.next` URL — a domain type shouldn't carry transport, or need a fake host to
+/// construct in a test.
 struct Page<Item: Hashable & Sendable>: Hashable, Sendable {
     let items: [Item]
     let currentPage: Int
