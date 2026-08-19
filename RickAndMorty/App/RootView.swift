@@ -1,18 +1,15 @@
 import SwiftUI
 
-// Raíz de la jerarquía de vistas.
-// La dejo fina a propósito: monta el contenedor de navegación y construye el view
-// model a partir del grafo ya compuesto. Es el único punto donde la vista sabe que
-// AppDependencies existe; de aquí para abajo cada pantalla recibe lo suyo y nada más.
+/// Root of the view hierarchy.
+///
+/// Deliberately thin: builds the navigation container and the view model from the
+/// already-composed graph. The only place a view knows `AppDependencies` exists —
+/// every screen below gets just what it needs, nothing more.
 struct RootView: View {
-    // @State y no una propiedad normal: el view model tiene que sobrevivir a las
-    // recomposiciones. Si se creara en el body, cada redibujado tiraría la lista y
-    // volvería a empezar por la página uno.
-    @State private var characterList: CharacterListViewModel
 
-    // Se guarda entero porque el destino de navegación se construye cuando el usuario
-    // toca una celda, no al montar la pantalla, y para entonces hace falta el caso de
-    // uso del detalle.
+    // @State, not a plain property: the view model must survive re-renders.
+    // Created inside body, it'd reset on every redraw, losing the list and paging.
+    @State private var characterList: CharacterListViewModel
     private let dependencies: AppDependencies
 
     @MainActor
@@ -26,11 +23,10 @@ struct RootView: View {
     var body: some View {
         NavigationStack {
             CharacterListView(viewModel: characterList)
-                // La navegación va por valor y no por vistas metidas dentro del enlace:
-                // así la celda solo declara a dónde lleva y esta pantalla —la única que
-                // conoce el grafo— decide qué se construye con ello. Es lo que evita
-                // tener que arrastrar las dependencias del detalle a través del listado
-                // y de cada celda.
+                // Value-based navigation, not views embedded in the link: the cell just
+                // declares where it leads, and this screen — the only one that knows the
+                // graph — decides what to build. Avoids threading detail dependencies
+                // through the list and every cell.
                 .navigationDestination(for: Character.self) { character in
                     CharacterDetailView(
                         character: character,

@@ -1,22 +1,17 @@
 #if DEBUG
 import Foundation
 
-// Arranque con datos fijos, solo en compilaciones de depuración.
-//
-// Existe para los tests de UI. Un test de interfaz que hable con la API de verdad falla
-// el día que no hay red, el día que la API contesta 429 —que con este proyecto es
-// cualquier día— y el día que alguien añade un personaje: tres formas de que la suite
-// se ponga roja sin que nadie haya roto nada. Con el grafo montado sobre este
-// repositorio la app es exactamente la misma, la única diferencia es de dónde salen los
-// bytes, que es justo lo que la inyección por protocolos estaba para permitir.
-//
-// Va dentro de #if DEBUG para que no viaje en el binario que se publica.
+/// Fixed-data launch, debug builds only.
+///
+/// For UI tests: hitting the real API means flaky failures from no network, rate
+/// limits, or someone adding a character — none of which mean anything broke.
+/// Swapping the repository behind the same protocol keeps the app identical; only
+/// where the bytes come from changes.
 enum LaunchEnvironment {
-    // Lo pasa el test como argumento de lanzamiento
+    // Passed by the test as a launch argument
     static let stubbedFlag = "-stubbed-data"
-    // Además del anterior: los datos siguen en memoria, pero un pull to refresh falla.
-    // Es la única forma de que un test de interfaz vea el aviso de refresco fallido
-    // sin depender de que no haya red.
+    // Same stubbed data, but pull-to-refresh fails. The only way a UI test can
+    // exercise the refresh-failure notice without depending on there being no network.
     static let refreshFailsFlag = "-stubbed-refresh-fails"
 
     static var isStubbed: Bool {
@@ -28,22 +23,21 @@ enum LaunchEnvironment {
     }
 }
 
-// Los mismos contratos que el repositorio de verdad, resueltos en memoria: pagina,
-// filtra por los mismos criterios y contesta al detalle. Lo que la app no puede notar
-// es de dónde vienen los datos.
+/// Same contract as the real repository, resolved in memory: pages, filters by the
+/// same criteria, answers detail lookups. The app can't tell where the data comes from.
 struct StubbedCharacterRepository: CharacterRepository {
     private static let pageSize = 20
 
-    // Si las peticiones que exigen datos frescos —solo las hace el refresh— fallan.
-    // Es lo que deja probar desde fuera que la lista se conserva y que se avisa.
+    // Whether requests demanding fresh data — only refresh makes those — fail.
+    // Lets tests verify the list is kept and the failure notice fires.
     let refreshFails: Bool
 
     init(refreshFails: Bool = false) {
         self.refreshFails = refreshFails
     }
 
-    // Los cuatro campos por los que se puede filtrar. Es un tipo con nombre y no una
-    // tupla para que la tabla de abajo se lea sin tener que contar posiciones.
+    // The four filterable fields. A named type, not a tuple, so the table below
+    // reads without counting positions.
     private struct Seed {
         let name: String
         let status: Character.Status
@@ -90,16 +84,16 @@ struct StubbedCharacterRepository: CharacterRepository {
                 gender: seed.gender,
                 origin: "Earth (C-137)",
                 location: "Citadel of Ricks",
-                // Sin URL a propósito: un test de UI no puede depender de que se
-                // descarguen imágenes, así que las celdas enseñan su placeholder
+                // No URL on purpose: a UI test can't depend on images downloading,
+                // so cells show their placeholder.
                 imageURL: nil,
                 episodeIDs: Array(1...((index % 4) + 1))
             )
         }
     }()
 
-    // freshness no cambia lo que se contesta —en memoria no hay nada más fresco que lo
-    // que hay—, salvo cuando se ha pedido que refrescar falle
+    // freshness doesn't change the answer — nothing in memory is fresher than
+    // itself — except when refresh is set to fail.
     func characters(
         page: Int,
         filter: CharacterFilter,
@@ -109,8 +103,8 @@ struct StubbedCharacterRepository: CharacterRepository {
             throw .offline
         }
 
-        // Los mismos criterios que aplica el servidor, y como él: por coincidencia
-        // parcial y sin distinguir mayúsculas
+        // Same criteria the server applies, the same way: partial match,
+        // case-insensitive.
         let matches = all.filter { character in
             let name = filter.trimmedName
             let species = filter.trimmedSpecies
