@@ -46,7 +46,7 @@ enum Theme {
     /// curve. With 14 on the notice, 16 on the cell, and 18 on the info block, three
     /// same-sized pieces curved differently for no reason at all.
     enum Radius {
-        // Small pieces that wrap text or an icon: chips, episode codes, symbol boxes.
+        // Small pieces that wrap text or an icon: chips, symbol boxes.
         static let chip: CGFloat = 10
         // Any content surface: cells, blocks, notices.
         static let card: CGFloat = 16

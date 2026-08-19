@@ -80,7 +80,9 @@ struct EpisodeAirDateFormattingTests {
 
     @Test("An unknown air date has no text, rather than a placeholder date")
     func unknownAirDateHasNoText() {
-        #expect(Episode(id: 1, name: "Pilot", code: "S01E01", airDate: nil).formattedAirDate == nil)
+        let pilot = Episode(id: 1, name: "Pilot", code: Episode.Code(season: 1, number: 1), airDate: nil)
+
+        #expect(pilot.formattedAirDate == nil)
     }
 
     @Test("The air date reads as the day it aired, even where midnight GMT is still the day before")
@@ -107,7 +109,7 @@ struct EpisodeAirDateFormattingTests {
         // check it
         try #require(TimeZone.current.identifier == "Pacific/Honolulu")
 
-        let episode = Episode(id: 1, name: "Pilot", code: "S01E01", airDate: try pilotAirDate)
+        let episode = Episode(id: 1, name: "Pilot", code: Episode.Code(season: 1, number: 1), airDate: try pilotAirDate)
         let text = try #require(episode.formattedAirDate)
         let shown = try Date.FormatStyle(timeZone: .gmt).day().month(.abbreviated).year().parse(text)
         let components = Calendar(identifier: .gregorian).dateComponents(in: .gmt, from: shown)

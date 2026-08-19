@@ -113,7 +113,7 @@ struct EpisodeMapperTests {
 
         #expect(episode.id == 1)
         #expect(episode.name == "Pilot")
-        #expect(episode.code == "S01E01")
+        #expect(episode.code == Episode.Code(season: 1, number: 1))
         #expect(components.year == 2013)
         #expect(components.month == 12)
         #expect(components.day == 2)

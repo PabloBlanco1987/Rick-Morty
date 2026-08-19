@@ -1,702 +1,702 @@
 {
-  "sourceLanguage" : "en",
-  "strings" : {
-    "appError.decoding.message" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.decoding: what the user can do about a response that failed to decode.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "We couldn't read the answer. Try again, and if it keeps happening it's on us."
+  "sourceLanguage": "en",
+  "strings": {
+    "appError.decoding.message": {
+      "extractionState": "manual",
+      "comment": "AppError.decoding: what the user can do about a response that failed to decode.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We couldn't read the answer. Try again, and if it keeps happening it's on us."
           }
         }
       }
     },
-    "appError.decoding.title" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.decoding: what went wrong when the response failed to decode.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Something came back wrong"
+    "appError.decoding.title": {
+      "extractionState": "manual",
+      "comment": "AppError.decoding: what went wrong when the response failed to decode.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something came back wrong"
           }
         }
       }
     },
-    "appError.notFound.message" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.notFound: what the user can do when the thing they wanted isn't there.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "We couldn't find what you were looking for."
+    "appError.notFound.message": {
+      "extractionState": "manual",
+      "comment": "AppError.notFound: what the user can do when the thing they wanted isn't there.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We couldn't find what you were looking for."
           }
         }
       }
     },
-    "appError.notFound.title" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.notFound: what went wrong when the requested thing doesn't exist.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing here"
+    "appError.notFound.title": {
+      "extractionState": "manual",
+      "comment": "AppError.notFound: what went wrong when the requested thing doesn't exist.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing here"
           }
         }
       }
     },
-    "appError.offline.message" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.offline: what the user can do about having no connection.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Check your Wi-Fi or mobile data and try again."
+    "appError.offline.message": {
+      "extractionState": "manual",
+      "comment": "AppError.offline: what the user can do about having no connection.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check your Wi-Fi or mobile data and try again."
           }
         }
       }
     },
-    "appError.offline.title" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.offline: what went wrong when the device has no connection.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No connection"
+    "appError.offline.title": {
+      "extractionState": "manual",
+      "comment": "AppError.offline: what went wrong when the device has no connection.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No connection"
           }
         }
       }
     },
-    "appError.rateLimited.message" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.rateLimited: what the user can do about the server throttling requests.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "We're asking for characters faster than the server will hand them over. Give it a second."
+    "appError.rateLimited.message": {
+      "extractionState": "manual",
+      "comment": "AppError.rateLimited: what the user can do about the server throttling requests.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We're asking for characters faster than the server will hand them over. Give it a second."
           }
         }
       }
     },
-    "appError.rateLimited.title" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.rateLimited: what went wrong when the server throttles requests.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Easy there"
+    "appError.rateLimited.title": {
+      "extractionState": "manual",
+      "comment": "AppError.rateLimited: what went wrong when the server throttles requests.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Easy there"
           }
         }
       }
     },
-    "appError.server.message" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.server: what the user can do about a server-side failure.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "It's not you. Give it a moment and try again."
+    "appError.server.message": {
+      "extractionState": "manual",
+      "comment": "AppError.server: what the user can do about a server-side failure.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It's not you. Give it a moment and try again."
           }
         }
       }
     },
-    "appError.server.title" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.server: what went wrong when the server itself is failing.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The server is having a bad day"
+    "appError.server.title": {
+      "extractionState": "manual",
+      "comment": "AppError.server: what went wrong when the server itself is failing.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server is having a bad day"
           }
         }
       }
     },
-    "appError.timeout.message" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.timeout: what the user can do about a slow connection.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The connection is slow right now. Try again in a moment."
+    "appError.timeout.message": {
+      "extractionState": "manual",
+      "comment": "AppError.timeout: what the user can do about a slow connection.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The connection is slow right now. Try again in a moment."
           }
         }
       }
     },
-    "appError.timeout.title" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.timeout: what went wrong when the request takes too long.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This is taking too long"
+    "appError.timeout.title": {
+      "extractionState": "manual",
+      "comment": "AppError.timeout: what went wrong when the request takes too long.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is taking too long"
           }
         }
       }
     },
-    "appError.unknown.message" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.cancelled and AppError.unknown: the generic call to action when nothing more specific applies.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try again."
+    "appError.unknown.message": {
+      "extractionState": "manual",
+      "comment": "AppError.cancelled and AppError.unknown: the generic call to action when nothing more specific applies.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again."
           }
         }
       }
     },
-    "appError.unknown.title" : {
-      "extractionState" : "manual",
-      "comment" : "AppError.cancelled and AppError.unknown: the generic title when nothing more specific applies.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Something went wrong"
+    "appError.unknown.title": {
+      "extractionState": "manual",
+      "comment": "AppError.cancelled and AppError.unknown: the generic title when nothing more specific applies.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something went wrong"
           }
         }
       }
     },
-    "characterCard.skeletonNameLabel" : {
-      "extractionState" : "manual",
-      "comment" : "Placeholder text shown in place of a character's name while the list skeleton is redacted.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Character name"
+    "characterCard.skeletonNameLabel": {
+      "extractionState": "manual",
+      "comment": "Placeholder text shown in place of a character's name while the list skeleton is redacted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Character name"
           }
         }
       }
     },
-    "characterCard.skeletonSpeciesLabel" : {
-      "extractionState" : "manual",
-      "comment" : "Placeholder text shown in place of a character's species while the list skeleton is redacted.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Species"
+    "characterCard.skeletonSpeciesLabel": {
+      "extractionState": "manual",
+      "comment": "Placeholder text shown in place of a character's species while the list skeleton is redacted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Species"
           }
         }
       }
     },
-    "characterDetail.episodesCountBadge" : {
-      "extractionState" : "manual",
-      "comment" : "Capsule next to the \"Episodes\" heading on the detail screen. %lld is how many episodes the character appears in; shown as the bare number in English.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld"
+    "characterDetail.episodeCode": {
+      "extractionState": "manual",
+      "comment": "Chip under an episode's name on the detail screen, saying where the episode sits in the series. %1$lld is the season number and %2$lld the episode number within it; both are plain numbers, with no padding zeros. The middle dot separates the two halves — replace it, reorder the placeholders, or drop it if the language reads better another way.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Season %1$lld · Episode %2$lld"
           }
         }
       }
     },
-    "characterDetail.episodesTitle" : {
-      "extractionState" : "manual",
-      "comment" : "A heading for the episodes of a character.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Episodes"
+    "characterDetail.episodesCountBadge": {
+      "extractionState": "manual",
+      "comment": "Capsule next to the \"Episodes\" heading on the detail screen. %lld is how many episodes the character appears in; shown as the bare number in English.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
           }
         }
       }
     },
-    "characterDetail.genderLabel" : {
-      "extractionState" : "manual",
-      "comment" : "A label for a character's gender in the detail screen's information section.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gender"
+    "characterDetail.episodesTitle": {
+      "extractionState": "manual",
+      "comment": "A heading for the episodes of a character.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Episodes"
           }
         }
       }
     },
-    "characterDetail.informationTitle" : {
-      "extractionState" : "manual",
-      "comment" : "A heading for the information about a character.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Information"
+    "characterDetail.genderLabel": {
+      "extractionState": "manual",
+      "comment": "A label for a character's gender in the detail screen's information section.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gender"
           }
         }
       }
     },
-    "characterDetail.locationLabel" : {
-      "extractionState" : "manual",
-      "comment" : "A label for a character's location in the detail screen's information section.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Location"
+    "characterDetail.informationTitle": {
+      "extractionState": "manual",
+      "comment": "A heading for the information about a character.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Information"
           }
         }
       }
     },
-    "characterDetail.noEpisodes" : {
-      "extractionState" : "manual",
-      "comment" : "A message that appears when a character doesn't appear in any episode.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This character doesn't appear in any episode."
+    "characterDetail.locationLabel": {
+      "extractionState": "manual",
+      "comment": "A label for a character's location in the detail screen's information section.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location"
           }
         }
       }
     },
-    "characterDetail.originLabel" : {
-      "extractionState" : "manual",
-      "comment" : "A label for a character's origin in the detail screen's information section.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Origin"
+    "characterDetail.noEpisodes": {
+      "extractionState": "manual",
+      "comment": "A message that appears when a character doesn't appear in any episode.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This character doesn't appear in any episode."
           }
         }
       }
     },
-    "characterDetail.retryButton" : {
-      "extractionState" : "manual",
-      "comment" : "A button that says \"Try again\" and triggers a retry, shown when the episodes section or the whole detail screen failed to load.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try again"
+    "characterDetail.originLabel": {
+      "extractionState": "manual",
+      "comment": "A label for a character's origin in the detail screen's information section.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Origin"
           }
         }
       }
     },
-    "characterDetail.skeletonEpisodeCode" : {
-      "extractionState" : "manual",
-      "comment" : "Placeholder shown in place of an episode's season/episode code while the episodes skeleton is redacted. Same shape as the real codes; it only sizes the gray bar.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "S01E01"
+    "characterDetail.retryButton": {
+      "extractionState": "manual",
+      "comment": "A button that says \"Try again\" and triggers a retry, shown when the episodes section or the whole detail screen failed to load.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
           }
         }
       }
     },
-    "characterDetail.skeletonEpisodeName" : {
-      "extractionState" : "manual",
-      "comment" : "Placeholder text shown in place of an episode's name while the episodes skeleton is redacted: it only sizes the gray bar.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Episode title"
+    "characterDetail.skeletonEpisodeName": {
+      "extractionState": "manual",
+      "comment": "Placeholder text shown in place of an episode's name while the episodes skeleton is redacted: it only sizes the gray bar.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Episode title"
           }
         }
       }
     },
-    "characterDetail.speciesLabel" : {
-      "extractionState" : "manual",
-      "comment" : "A label for a character's species in the detail screen's information section.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Species"
+    "characterDetail.speciesLabel": {
+      "extractionState": "manual",
+      "comment": "A label for a character's species in the detail screen's information section.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Species"
           }
         }
       }
     },
-    "characterDetail.typeLabel" : {
-      "extractionState" : "manual",
-      "comment" : "A label for a character's type in the detail screen's information section.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Type"
+    "characterDetail.typeLabel": {
+      "extractionState": "manual",
+      "comment": "A label for a character's type in the detail screen's information section.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type"
           }
         }
       }
     },
-    "characterDetail.unknownPlace" : {
-      "extractionState" : "manual",
-      "comment" : "Shown as the origin or location of a character when the API does not know it.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unknown"
+    "characterDetail.unknownPlace": {
+      "extractionState": "manual",
+      "comment": "Shown as the origin or location of a character when the API does not know it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown"
           }
         }
       }
     },
-    "characterFilters.clearButton" : {
-      "extractionState" : "manual",
-      "comment" : "A button that clears all the filters.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear"
+    "characterFilters.clearButton": {
+      "extractionState": "manual",
+      "comment": "A button that clears all the filters.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
           }
         }
       }
     },
-    "characterFilters.doneButton" : {
-      "extractionState" : "manual",
-      "comment" : "A button that closes the filters sheet.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Done"
+    "characterFilters.doneButton": {
+      "extractionState": "manual",
+      "comment": "A button that closes the filters sheet.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
           }
         }
       }
     },
-    "characterFilters.gender.any" : {
-      "extractionState" : "manual",
-      "comment" : "Picker option meaning \"do not filter by gender\". Separate key from characterFilters.status.any so each can agree grammatically with its noun in languages that need it.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Any"
+    "characterFilters.gender.any": {
+      "extractionState": "manual",
+      "comment": "Picker option meaning \"do not filter by gender\". Separate key from characterFilters.status.any so each can agree grammatically with its noun in languages that need it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Any"
           }
         }
       }
     },
-    "characterFilters.genderPicker.title" : {
-      "extractionState" : "manual",
-      "comment" : "A label for a picker that lets the user select a character's gender.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gender"
+    "characterFilters.genderPicker.title": {
+      "extractionState": "manual",
+      "comment": "A label for a picker that lets the user select a character's gender.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gender"
           }
         }
       }
     },
-    "characterFilters.speciesField.prompt" : {
-      "extractionState" : "manual",
-      "comment" : "Placeholder for the species text field in the filters sheet: examples of what to type. Kept short so it is not truncated at accessibility text sizes. The API matches species by English text, so the examples must stay in English.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Human, Alien…"
+    "characterFilters.speciesField.prompt": {
+      "extractionState": "manual",
+      "comment": "Placeholder for the species text field in the filters sheet: examples of what to type. Kept short so it is not truncated at accessibility text sizes. The API matches species by English text, so the examples must stay in English.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Human, Alien…"
           }
         }
       }
     },
-    "characterFilters.speciesSection.footer" : {
-      "extractionState" : "manual",
-      "comment" : "A description of how the species filter works.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The server matches partial names, so \"hum\" already finds humans."
+    "characterFilters.speciesSection.footer": {
+      "extractionState": "manual",
+      "comment": "A description of how the species filter works.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server matches partial names, so \"hum\" already finds humans."
           }
         }
       }
     },
-    "characterFilters.speciesSection.title" : {
-      "extractionState" : "manual",
-      "comment" : "A heading for the species filter section.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Species"
+    "characterFilters.speciesSection.title": {
+      "extractionState": "manual",
+      "comment": "A heading for the species filter section.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Species"
           }
         }
       }
     },
-    "characterFilters.status.any" : {
-      "extractionState" : "manual",
-      "comment" : "Picker option meaning \"do not filter by status\". Separate key from characterFilters.gender.any so each can agree grammatically with its noun in languages that need it.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Any"
+    "characterFilters.status.any": {
+      "extractionState": "manual",
+      "comment": "Picker option meaning \"do not filter by status\". Separate key from characterFilters.gender.any so each can agree grammatically with its noun in languages that need it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Any"
           }
         }
       }
     },
-    "characterFilters.statusPicker.title" : {
-      "extractionState" : "manual",
-      "comment" : "A label for a picker that lets the user select a character's status.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Status"
+    "characterFilters.statusPicker.title": {
+      "extractionState": "manual",
+      "comment": "A label for a picker that lets the user select a character's status.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
           }
         }
       }
     },
-    "characterFilters.title" : {
-      "extractionState" : "manual",
-      "comment" : "A heading for the screen that lets the user filter the list of characters.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Filters"
+    "characterFilters.title": {
+      "extractionState": "manual",
+      "comment": "A heading for the screen that lets the user filter the list of characters.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filters"
           }
         }
       }
     },
-    "characterGender.female" : {
-      "extractionState" : "manual",
-      "comment" : "Character.Gender.female, as shown to the user.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Female"
+    "characterGender.female": {
+      "extractionState": "manual",
+      "comment": "Character.Gender.female, as shown to the user.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Female"
           }
         }
       }
     },
-    "characterGender.genderless" : {
-      "extractionState" : "manual",
-      "comment" : "Character.Gender.genderless, as shown to the user.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Genderless"
+    "characterGender.genderless": {
+      "extractionState": "manual",
+      "comment": "Character.Gender.genderless, as shown to the user.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Genderless"
           }
         }
       }
     },
-    "characterGender.male" : {
-      "extractionState" : "manual",
-      "comment" : "Character.Gender.male, as shown to the user.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Male"
+    "characterGender.male": {
+      "extractionState": "manual",
+      "comment": "Character.Gender.male, as shown to the user.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Male"
           }
         }
       }
     },
-    "characterGender.unknown" : {
-      "extractionState" : "manual",
-      "comment" : "Character.Gender.unknown, as shown to the user.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unknown"
+    "characterGender.unknown": {
+      "extractionState": "manual",
+      "comment": "Character.Gender.unknown, as shown to the user.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown"
           }
         }
       }
     },
-    "characterList.clearFiltersButton" : {
-      "extractionState" : "manual",
-      "comment" : "A button that clears all the filters, shown from the empty state when a search with active filters yields no results.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear filters"
+    "characterList.clearFiltersButton": {
+      "extractionState": "manual",
+      "comment": "A button that clears all the filters, shown from the empty state when a search with active filters yields no results.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear filters"
           }
         }
       }
     },
-    "characterList.clearSearchAndFiltersButton" : {
-      "extractionState" : "manual",
-      "comment" : "A button that clears both the search text and the filters, shown from the empty state when a search combined with filters yields no results.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear search and filters"
+    "characterList.clearSearchAndFiltersButton": {
+      "extractionState": "manual",
+      "comment": "A button that clears both the search text and the filters, shown from the empty state when a search combined with filters yields no results.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear search and filters"
           }
         }
       }
     },
-    "characterList.clearSearchButton" : {
-      "extractionState" : "manual",
-      "comment" : "A button that clears the search text, shown from the empty state when a search with no filters yields no results.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear search"
+    "characterList.clearSearchButton": {
+      "extractionState": "manual",
+      "comment": "A button that clears the search text, shown from the empty state when a search with no filters yields no results.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear search"
           }
         }
       }
     },
-    "characterList.empty.description" : {
-      "extractionState" : "manual",
-      "comment" : "A description of the state of an empty screen, with no filters active.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "There's nothing to show here yet."
+    "characterList.empty.description": {
+      "extractionState": "manual",
+      "comment": "A description of the state of an empty screen, with no filters active.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There's nothing to show here yet."
           }
         }
       }
     },
-    "characterList.empty.title" : {
-      "extractionState" : "manual",
-      "comment" : "Title of the empty state when the full list, with nothing narrowing it, has no characters.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No characters"
+    "characterList.empty.title": {
+      "extractionState": "manual",
+      "comment": "Title of the empty state when the full list, with nothing narrowing it, has no characters.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No characters"
           }
         }
       }
     },
-    "characterList.filtersButton.title" : {
-      "extractionState" : "manual",
-      "comment" : "The label for the toolbar button that opens the character filters.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Filters"
+    "characterList.filtersButton.title": {
+      "extractionState": "manual",
+      "comment": "The label for the toolbar button that opens the character filters.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filters"
           }
         }
       }
     },
-    "characterList.noMatches.description" : {
-      "extractionState" : "manual",
-      "comment" : "Description of the empty state shown when the list is narrowed by a search, by filters, or by both, and nothing matches. Keep the wording neutral so it fits all three cases.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No characters match what you're looking for."
+    "characterList.noMatches.description": {
+      "extractionState": "manual",
+      "comment": "Description of the empty state shown when the list is narrowed by a search, by filters, or by both, and nothing matches. Keep the wording neutral so it fits all three cases.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No characters match what you're looking for."
           }
         }
       }
     },
-    "characterList.noMatches.title" : {
-      "extractionState" : "manual",
-      "comment" : "Title of the empty state shown when the list is narrowed by a search, by filters, or by both, and nothing matches. Keep the wording neutral so it fits all three cases.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No matches"
+    "characterList.noMatches.title": {
+      "extractionState": "manual",
+      "comment": "Title of the empty state shown when the list is narrowed by a search, by filters, or by both, and nothing matches. Keep the wording neutral so it fits all three cases.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matches"
           }
         }
       }
     },
-    "characterList.refreshFailed.message" : {
-      "extractionState" : "manual",
-      "comment" : "Body of the notice shown at the top of the list when a pull to refresh fails and the previous list is kept. Preceded by the error title (appError.*.title).",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couldn't refresh, so what you see may be out of date."
+    "characterList.refreshFailed.message": {
+      "extractionState": "manual",
+      "comment": "Body of the notice shown at the top of the list when a pull to refresh fails and the previous list is kept. Preceded by the error title (appError.*.title).",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't refresh, so what you see may be out of date."
           }
         }
       }
     },
-    "characterList.retryButton" : {
-      "extractionState" : "manual",
-      "comment" : "A button that says \"Try again\" and triggers a retry, shown when a page failed to load or the whole list failed to load.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try again"
+    "characterList.retryButton": {
+      "extractionState": "manual",
+      "comment": "A button that says \"Try again\" and triggers a retry, shown when a page failed to load or the whole list failed to load.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
           }
         }
       }
     },
-    "characterList.searchPrompt" : {
-      "extractionState" : "manual",
-      "comment" : "A placeholder for the search bar in the navigation bar.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search characters"
+    "characterList.searchPrompt": {
+      "extractionState": "manual",
+      "comment": "A placeholder for the search bar in the navigation bar.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search characters"
           }
         }
       }
     },
-    "characterList.title" : {
-      "extractionState" : "manual",
-      "comment" : "A title for the list of characters.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Characters"
+    "characterList.title": {
+      "extractionState": "manual",
+      "comment": "A title for the list of characters.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Characters"
           }
         }
       }
     },
-    "characterStatus.alive" : {
-      "extractionState" : "manual",
-      "comment" : "Character.Status.alive, as shown to the user.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Alive"
+    "characterStatus.alive": {
+      "extractionState": "manual",
+      "comment": "Character.Status.alive, as shown to the user.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alive"
           }
         }
       }
     },
-    "characterStatus.dead" : {
-      "extractionState" : "manual",
-      "comment" : "Character.Status.dead, as shown to the user.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dead"
+    "characterStatus.dead": {
+      "extractionState": "manual",
+      "comment": "Character.Status.dead, as shown to the user.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dead"
           }
         }
       }
     },
-    "characterStatus.unknown" : {
-      "extractionState" : "manual",
-      "comment" : "Character.Status.unknown, as shown to the user.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unknown"
+    "characterStatus.unknown": {
+      "extractionState": "manual",
+      "comment": "Character.Status.unknown, as shown to the user.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown"
           }
         }
       }
     }
   },
-  "version" : "1.2"
+  "version": "1.2"
 }

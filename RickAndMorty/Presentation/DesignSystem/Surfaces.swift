@@ -21,7 +21,8 @@ extension View {
             .contentShape(.rect(cornerRadius: cornerRadius))
     }
 
-    // Tinted fill used by chips: status badge, episode count, an episode's code.
+    // Tinted fill used by chips: status badge, episode count, an episode's season and
+    // number.
     //
     // Tint color is a parameter because it isn't always the accent: the status badge is
     // tinted with its own status color — green, red, or gray — which is exactly the data
@@ -67,8 +68,8 @@ extension View {
                 .font(.chipLabel)
                 .tintedChip(in: .capsule)
 
-            Text(verbatim: "S01E01")
-                .font(.chipCode)
+            Text(verbatim: "Season 1 · Episode 1")
+                .font(.chipLabel)
                 .tintedChip(in: .rect(cornerRadius: Theme.Radius.chip))
 
             Text(verbatim: "Alive")

@@ -156,7 +156,7 @@ It's tokens plus half a dozen components, and fits in one table:
 | `Theme.Layout` | Margins, max widths, minimum column widths | What only means something in its own spot |
 | `Theme.Tint` | `accent` + a single 12% fill | Chips, icons, badges |
 | `Theme.Motion` | `fade`, `notice` | The app's only two animations |
-| `Font.*` | `cardTitle`, `label`, `chipCode`… | Aliases over *text styles*, never points |
+| `Font.*` | `cardTitle`, `label`, `chipLabel`… | Aliases over *text styles*, never points |
 
 On top of the tokens sits what used to be copied by hand: `.cardSurface()` (the rounded
 background that was duplicated in seven places with two different radii),

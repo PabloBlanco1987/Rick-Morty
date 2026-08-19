@@ -158,7 +158,7 @@ Son tokens y media docena de componentes, y cabe en una tabla:
 | `Theme.Layout` | Márgenes, anchos máximos, mínimos de columna | Lo que solo significa algo en su sitio |
 | `Theme.Tint` | `accent` + un único relleno al 12% | Chips, iconos, badges |
 | `Theme.Motion` | `fade`, `notice` | Las dos únicas animaciones de la app |
-| `Font.*` | `cardTitle`, `label`, `chipCode`… | Alias sobre *text styles*, nunca puntos |
+| `Font.*` | `cardTitle`, `label`, `chipLabel`… | Alias sobre *text styles*, nunca puntos |
 
 Encima de los tokens hay lo que se repetía a mano: `.cardSurface()` (el fondo redondeado
 que estaba copiado en siete sitios con dos radios distintos), `.tintedChip(_:in:)`,

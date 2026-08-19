@@ -68,7 +68,7 @@ final class RickAndMortyUITests: XCTestCase {
         // the skeleton, so a row is what proves loading has finished
         XCTAssertTrue(app.staticTexts["Episodes"].exists)
         XCTAssertTrue(app.staticTexts["Episode 1"].waitForExistence(timeout: 5), "The episode list never loaded")
-        XCTAssertTrue(app.staticTexts["S01E01"].exists)
+        XCTAssertTrue(app.staticTexts["Season 1 · Episode 1"].exists)
     }
 
     @MainActor

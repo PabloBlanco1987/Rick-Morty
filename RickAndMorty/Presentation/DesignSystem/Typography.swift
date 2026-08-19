@@ -36,12 +36,8 @@ extension Font {
     // What accompanies a value without being the value: an episode's air date.
     static let metadata: Font = .caption
 
-    // A chip's text.
+    // A chip's text: a character's status, an episode's season and number.
     static let chipLabel: Font = .caption.weight(.medium)
-    // An episode's code. Monospaced because "S01E01" and "S03E10" are the same kind of
-    // data with different content: aligned, the season reads at a glance down the
-    // column.
-    static let chipCode: Font = .caption.monospaced().weight(.semibold)
 
     // The gray silhouette for an image placeholder while it hasn't loaded.
     static let placeholderIcon: Font = .largeTitle

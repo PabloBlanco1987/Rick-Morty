@@ -95,9 +95,9 @@ struct FetchCharacterDetailUseCaseTests {
         let repository = StubCharacterRepository(
             character: .success(.stub(episodeIDs: [1, 2, 51])),
             episodes: .success([
-                Episode(id: 1, name: "Pilot", code: "S01E01", airDate: nil),
-                Episode(id: 2, name: "Lawnmower Dog", code: "S01E02", airDate: nil),
-                Episode(id: 51, name: "Rickmurai Jack", code: "S05E10", airDate: nil),
+                Episode(id: 1, name: "Pilot", code: Episode.Code(season: 1, number: 1), airDate: nil),
+                Episode(id: 2, name: "Lawnmower Dog", code: Episode.Code(season: 1, number: 2), airDate: nil),
+                Episode(id: 51, name: "Rickmurai Jack", code: Episode.Code(season: 5, number: 10), airDate: nil),
             ])
         )
         let sut = FetchCharacterDetailUseCase(repository: repository)

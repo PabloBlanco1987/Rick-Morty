@@ -136,7 +136,7 @@ struct StubbedCharacterRepository: CharacterRepository {
             Episode(
                 id: id,
                 name: "Episode \(id)",
-                code: String(format: "S01E%02d", id),
+                code: Episode.Code(season: 1, number: id),
                 airDate: Date(timeIntervalSince1970: 1_386_000_000)
             )
         }

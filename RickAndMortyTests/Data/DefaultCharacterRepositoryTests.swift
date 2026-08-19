@@ -68,7 +68,10 @@ struct DefaultCharacterRepositoryTests {
     func mapsEpisodes() async throws {
         let episodes = try await makeSUT(.json(JSONFixtures.episodeArray)).episodes(ids: [1, 2])
 
-        #expect(episodes.map(\.code) == ["S01E01", "S01E02"])
+        #expect(episodes.map(\.code) == [
+            Episode.Code(season: 1, number: 1),
+            Episode.Code(season: 1, number: 2),
+        ])
         #expect(episodes.allSatisfy { $0.airDate != nil })
     }
 

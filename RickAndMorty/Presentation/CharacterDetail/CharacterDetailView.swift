@@ -198,13 +198,15 @@ struct CharacterDetailView: View {
                     Divider()
                 }
 
-                // Text comes from the catalog even though it's never read — it only
+                // The name comes from the catalog even though it's never read — it only
                 // sets the gray bar's width, so no interface literal sits in the code.
+                // The code needs no key of its own anymore: its words already come from
+                // the catalog through the format, and 1 and 1 are numbers, not text.
                 EpisodeRow(
                     episode: Episode(
                         id: index,
                         name: String(localized: .characterDetailSkeletonEpisodeName),
-                        code: String(localized: .characterDetailSkeletonEpisodeCode),
+                        code: Episode.Code(season: 1, number: 1),
                         airDate: nil
                     )
                 )
@@ -221,44 +223,73 @@ struct CharacterDetailView: View {
     }
 }
 
-/// Code on the left, title on the right; at accessibility sizes, code on top, title
-/// below. In horizontal layout, a monospaced "S01E01" at 43pt ate half the row, leaving
-/// the title five letters per line — "Episo-de" hyphenating, and the code itself
-/// wrapping in two.
+/// Title on top, then where the episode sits and when it aired.
+///
+/// The title leads because "Season 1 · Episode 8" is a phrase, not a token, and a phrase
+/// can't hold the narrow left column the monospaced "S01E01" used to: at any text size it
+/// would take most of the row and leave the title a few letters per line. Turned into the
+/// row's second line it costs nothing, reads as words, and puts the name — the thing
+/// being scanned for — first.
+///
+/// Chip and date share that second line while both fit, and stack when they don't.
 private struct EpisodeRow: View {
     let episode: Episode
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     var body: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.Spacing.small))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: Theme.Spacing.medium))
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+            Text(episode.name)
+                .font(.labelEmphasis)
+                .fixedSize(horizontal: false, vertical: true)
 
-        layout {
-            Text(episode.code)
-                .font(.chipCode)
-                // A code never wraps — it yields the line to the title instead.
-                .fixedSize()
-                .tintedChip(in: .rect(cornerRadius: Theme.Radius.chip))
+            // `ViewThatFits` over a type-size threshold: what decides here is whether the
+            // two actually fit, and that depends on the season, the date's language and
+            // the width as much as on the text size. Neither variant truncates, so the
+            // fallback is a taller row, never a cut word.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Theme.Spacing.medium) {
+                    code
+                    airDate
+                }
 
-            VStack(alignment: .leading, spacing: Theme.Spacing.xxSmall) {
-                Text(episode.name)
-                    .font(.label)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let airDate = episode.formattedAirDate {
-                    Text(airDate)
-                        .font(.metadata)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: Theme.Spacing.small) {
+                    code
+                    airDate
                 }
             }
         }
-        // Width comes from the row, not a Spacer: in the vertical variant a Spacer
-        // would push down instead of right.
+        // Width comes from the row, not a Spacer: in the stacked variant a Spacer would
+        // push down instead of right.
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Spacing.large)
         .padding(.vertical, Theme.Spacing.medium)
+    }
+
+    // Absent when the API's code didn't parse: the row loses its chip, not its meaning.
+    @ViewBuilder
+    private var code: some View {
+        if let code = episode.code {
+            Text(code.displayName)
+                .font(.chipLabel)
+                .tintedChip(in: .rect(cornerRadius: Theme.Radius.chip))
+        }
+    }
+
+    @ViewBuilder
+    private var airDate: some View {
+        if let airDate = episode.formattedAirDate {
+            Text(airDate)
+                .font(.metadata)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+extension Episode.Code {
+    // "Season 1 · Episode 8". The numbers come from the domain and the words from the
+    // catalog, so nothing here knows about the API's "S01E08": the padding zeros never
+    // reach the screen, and a translation can reword — or reorder — the two numbers.
+    var displayName: String {
+        String(localized: .characterDetailEpisodeCode(season, number))
     }
 }
 

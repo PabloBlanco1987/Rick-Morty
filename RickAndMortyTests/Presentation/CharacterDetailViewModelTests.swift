@@ -21,8 +21,8 @@ struct CharacterDetailViewModelTests {
     }
 
     private let episodes = [
-        Episode(id: 1, name: "Pilot", code: "S01E01", airDate: nil),
-        Episode(id: 2, name: "Lawnmower Dog", code: "S01E02", airDate: nil),
+        Episode(id: 1, name: "Pilot", code: Episode.Code(season: 1, number: 1), airDate: nil),
+        Episode(id: 2, name: "Lawnmower Dog", code: Episode.Code(season: 1, number: 2), airDate: nil),
     ]
 
     // MARK: - Loading
@@ -59,7 +59,10 @@ struct CharacterDetailViewModelTests {
         await sut.onAppear()
 
         #expect(sut.character?.name == "Rick Sanchez")
-        #expect(sut.episodes.map(\.code) == ["S01E01", "S01E02"])
+        #expect(sut.episodes.map(\.code) == [
+            Episode.Code(season: 1, number: 1),
+            Episode.Code(season: 1, number: 2),
+        ])
         #expect(await repository.requestedCharacterIDs == [42])
     }
 
