@@ -2,10 +2,10 @@ import Foundation
 import Testing
 @testable import RickAndMorty
 
-// La tabla que convierte lo que devuelve URLSession en AppError. Se prueba aparte del
-// cliente HTTP porque la comparten dos salidas a la red —el JSON y las imágenes— y lo que
-// importa es que la tabla sea una y esté completa: los tests del cliente comprueban que
-// la usa; estos, qué dice.
+/// The table that translates what URLSession returns into `AppError`. Tested apart from
+/// the HTTP client because two network paths share it — JSON and images — and what
+/// matters is that the table is one and complete: the client's tests check it's used;
+/// these test what it says.
 @Suite("App error network translation")
 struct AppErrorNetworkTests {
     @Test(
@@ -21,15 +21,15 @@ struct AppErrorNetworkTests {
         ]
     )
     func connectivityFailuresAreOffline(code: URLError.Code) {
-        // Para el usuario la instrucción es la misma en los siete casos —comprobar la
-        // conexión y volver a intentarlo—, y reintentar solo no arregla ninguno
+        // Same guidance in all seven cases — check the connection and retry — and
+        // retrying alone won't fix any of them
         #expect(AppError(URLError(code)) == .offline)
     }
 
     @Test("A timeout and a cancellation keep their own case")
     func timeoutAndCancellationAreDistinct() {
-        // El timeout se reintenta solo y la cancelación no se enseña nunca: si cayeran
-        // en el mismo saco que "sin conexión" se perdería una decisión en cada uno
+        // Timeout retries on its own and cancellation is never shown to the user:
+        // lumping both with "offline" would lose a distinct decision in each case
         #expect(AppError(URLError(.timedOut)) == .timeout)
         #expect(AppError(URLError(.cancelled)) == .cancelled)
     }
@@ -44,24 +44,24 @@ struct AppErrorNetworkTests {
 
     @Test("A 2xx has nothing to translate", arguments: [200, 201, 204, 299])
     func successCodesTranslateToNothing(statusCode: Int) {
-        // nil y no un caso de éxito: quien llama sigue con los bytes, y no hay un
-        // AppError.success que alguien pudiera lanzar por error
+        // nil, not a success case: the caller just proceeds with the bytes, and there's
+        // no AppError.success someone could throw by mistake
         #expect(AppError(statusCode: statusCode) == nil)
     }
 
     @Test("404 and 429 are the two codes the app treats specially")
     func notFoundAndRateLimitedHaveTheirOwnCase() {
-        // El 404 es lo que la API contesta a una búsqueda sin resultados, y el 429 lo
-        // pone Cloudflare al hacer scroll rápido: los dos necesitan una reacción propia,
-        // no un mensaje de "error del servidor"
+        // 404 is what the API returns for a search with no results, and 429 is what
+        // Cloudflare returns on fast scrolling: both need their own reaction, not a
+        // generic "server error" message
         #expect(AppError(statusCode: 404) == .notFound)
         #expect(AppError(statusCode: 429) == .rateLimited)
     }
 
     @Test("Any other status keeps its code", arguments: [400, 401, 403, 500, 502, 503])
     func otherStatusesKeepTheirCode(statusCode: Int) {
-        // Se conserva el código porque de él depende si merece reintento: un 5xx sí,
-        // un 4xx no
+        // The code is kept because it decides whether a retry is worth it: yes for
+        // 5xx, no for 4xx
         #expect(AppError(statusCode: statusCode) == .server(statusCode: statusCode))
     }
 }

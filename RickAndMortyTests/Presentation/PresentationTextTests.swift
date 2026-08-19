@@ -3,11 +3,11 @@ import Testing
 import UIKit
 @testable import RickAndMorty
 
-// Lo que presentación decide sobre cómo se dice cada cosa: los textos de error, los
-// nombres de estado y género, y la fecha de emisión. No se comprueba la redacción —eso
-// es lo que cambia— sino lo que se puede romper sin que nadie lo vea: un símbolo SF mal
-// escrito se pinta como nada, dos casos que dicen lo mismo esconden un copia y pega, y una
-// fecha formateada en la zona equivocada sale un día antes.
+/// What presentation decides about how each thing reads: error text, status and
+/// gender names, and the air date. Wording itself isn't checked — that's expected to
+/// change — but what can break silently: a misspelled SF Symbol renders as nothing,
+/// two cases sharing text hide a copy-paste, and a date formatted in the wrong time
+/// zone shows a day early.
 @Suite("Error presentation")
 struct AppErrorPresentationTests {
     private static let everyError: [AppError] = [
@@ -16,8 +16,8 @@ struct AppErrorPresentationTests {
 
     @Test("Every error icon is a symbol that exists", arguments: everyError)
     func everyIconExists(error: AppError) {
-        // Un nombre de SF Symbol con una errata no falla al compilar: la vista pinta un
-        // hueco. Es el único sitio donde se pueden comprobar los ocho de una vez.
+        // A misspelled SF Symbol name doesn't fail to compile — the view renders a
+        // blank. This is the one place all eight can be checked at once.
         #expect(UIImage(systemName: error.systemImage) != nil, "\(error.systemImage) is not an SF Symbol")
     }
 
@@ -30,9 +30,9 @@ struct AppErrorPresentationTests {
 
     @Test("Each error the user can tell apart reads differently")
     func distinctErrorsReadDifferently() {
-        // Cancelar y desconocido comparten texto a propósito —ninguno de los dos tiene
-        // nada concreto que contar—; los demás tienen cada uno su causa y su remedio, y si
-        // dos coincidieran sería porque alguien copió una clave sin cambiar la otra
+        // Cancelled and unknown share text on purpose — neither has anything concrete
+        // to say; the rest each have their own cause and fix, and a match between two
+        // would mean a copied key wasn't changed.
         let distinct: [AppError] = [.offline, .timeout, .notFound, .rateLimited, .server(statusCode: 500), .decoding]
 
         #expect(Set(distinct.map(\.title)).count == distinct.count)
@@ -45,8 +45,8 @@ struct AppErrorPresentationTests {
 struct CharacterEnumDisplayNameTests {
     @Test("Every status has a name of its own")
     func statusesReadDifferently() {
-        // El badge dice el estado con texto porque el color no llega a todo el mundo; si
-        // dos estados compartieran texto, para esos usuarios serían el mismo
+        // The badge states status as text because color doesn't reach everyone; if two
+        // statuses shared text, those users couldn't tell them apart.
         let names = Character.Status.allCases.map(\.displayName)
         #expect(names.allSatisfy { !$0.isEmpty })
         #expect(Set(names).count == names.count)
@@ -60,12 +60,13 @@ struct CharacterEnumDisplayNameTests {
     }
 }
 
-// Serializada porque el segundo test cambia la zona horaria del proceso mientras dura, y
-// aunque la restaura al salir, no puede correr a la vez que otro que también la toque.
-// Es el único test de la suite que formatea una fecha sin fijar la zona a propósito.
+/// Serialized because the second test changes the process time zone for its duration —
+/// it restores it on exit, but can't run alongside another test that also touches it.
+/// It's the only test in the suite that formats a date without pinning the zone, on
+/// purpose.
 @Suite("Episode air date formatting", .serialized)
 struct EpisodeAirDateFormattingTests {
-    // El día 2 de diciembre de 2013 a medianoche en GMT, que es como lo guarda el mapper
+    // December 2, 2013 at midnight GMT, matching how the mapper stores it
     private var pilotAirDate: Date {
         get throws {
             var components = DateComponents()
@@ -84,17 +85,17 @@ struct EpisodeAirDateFormattingTests {
 
     @Test("The air date reads as the day it aired, even where midnight GMT is still the day before")
     func airDateDoesNotShiftWestOfGreenwich() throws {
-        // La fecha se guarda como la medianoche de ese día en GMT. Formateada en la zona
-        // del dispositivo, en cualquier zona con desfase negativo esa medianoche cae el
-        // día anterior y el piloto saldría emitido el 1 de diciembre. Se pone el proceso
-        // en Honolulu —diez horas al oeste— y se comprueba que sigue diciendo 2.
+        // The date is stored as midnight that day in GMT. Formatted in the device's
+        // zone, any zone with a negative offset shifts that midnight to the day
+        // before, so the pilot would show as aired December 1. The process is set to
+        // Honolulu — ten hours west — and checked that it still reads 2.
         //
-        // La zona del proceso se cambia por la variable TZ, que es lo único que Foundation
-        // relee: NSTimeZone.default ya no cambia TimeZone.current. Es lo que hace que este
-        // test valga en cualquier máquina y no solo al oeste de Greenwich.
+        // The process zone is changed via the TZ env var, the only thing Foundation
+        // re-reads: NSTimeZone.default no longer updates TimeZone.current. That's what
+        // makes this test valid on any machine, not just west of Greenwich.
         //
-        // El texto se vuelve a parsear con el mismo estilo en vez de compararlo con un
-        // literal: así el test no depende del idioma del dispositivo en el que corra.
+        // The text is re-parsed with the same style instead of compared to a literal,
+        // so the test doesn't depend on the device's language.
         let previous = getenv("TZ").map { String(cString: $0) }
         setenv("TZ", "Pacific/Honolulu", 1)
         NSTimeZone.resetSystemTimeZone()
@@ -102,7 +103,8 @@ struct EpisodeAirDateFormattingTests {
             if let previous { setenv("TZ", previous, 1) } else { unsetenv("TZ") }
             NSTimeZone.resetSystemTimeZone()
         }
-        // Si el cambio no surtiera efecto, el test pasaría sin probar nada: se comprueba
+        // If the change had no effect, the test would pass without testing anything —
+        // check it
         try #require(TimeZone.current.identifier == "Pacific/Honolulu")
 
         let episode = Episode(id: 1, name: "Pilot", code: "S01E01", airDate: try pilotAirDate)

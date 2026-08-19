@@ -1,18 +1,17 @@
 import Foundation
 
-// Un pestillo asíncrono: quien llama a wait() se queda parado hasta que el test abre.
-//
-// Sirve para congelar una operación en vuelo y comprobar qué hace la app mientras
-// tanto. La alternativa —dormir 50 ms y confiar— es la receta habitual de los tests
-// que fallan una vez de cada treinta en la máquina de integración, así que aquí no hay
-// tiempos: hay rendezvous.
+/// An async gate: whoever calls `wait()` blocks until the test opens it.
+///
+/// Used to freeze an in-flight operation and inspect what the app does meanwhile. The
+/// alternative — sleep 50ms and hope — is the usual recipe for tests that flake one
+/// time in thirty on CI, so there are no timers here: only rendezvous.
 actor AsyncGate {
     private var isOpen = false
     private var hasBeenReached = false
     private var blocked: [CheckedContinuation<Void, Never>] = []
     private var watchers: [CheckedContinuation<Void, Never>] = []
 
-    // La llama el código bajo prueba
+    // Called by the code under test.
     func wait() async {
         hasBeenReached = true
         watchers.forEach { $0.resume() }
@@ -22,14 +21,14 @@ actor AsyncGate {
         await withCheckedContinuation { blocked.append($0) }
     }
 
-    // La llama el test: vuelve en cuanto alguien ha llegado al pestillo, así que a
-    // partir de ahí se sabe con certeza que la operación está congelada dentro
+    // Called by the test: returns as soon as someone has reached the gate, so from
+    // then on the operation is known to be frozen inside.
     func waitUntilReached() async {
         guard !hasBeenReached else { return }
         await withCheckedContinuation { watchers.append($0) }
     }
 
-    // Abre y deja abierto: quien llegue después ya no se para
+    // Opens and stays open: anyone arriving after this no longer blocks.
     func open() {
         isOpen = true
         blocked.forEach { $0.resume() }
@@ -37,24 +36,23 @@ actor AsyncGate {
     }
 }
 
-// Apunta las esperas en vez de dormirlas de verdad, así lo que se comprueba es la
-// decisión —cuánto se decide esperar y cuándo— y no el reloj, y la suite entera se
-// queda en milisegundos
+/// Records waits instead of actually sleeping, so what's asserted is the decision —
+/// how long and when — not the clock, keeping the whole suite in milliseconds.
 actor SleepRecorder {
     private(set) var durations: [Duration] = []
 
     func record(_ duration: Duration) { durations.append(duration) }
 }
 
-// Apunta el orden en el que se ha ido atendiendo cada petición
+/// Records the order in which each request was handled.
 actor OrderRecorder {
     private(set) var ids: [Int] = []
 
     func record(_ id: Int) { ids.append(id) }
 }
 
-// Cuántas cosas han llegado a estar en marcha a la vez. Es lo que distingue un límite
-// que se respeta de uno que solo está escrito.
+/// How many things were in flight at once. Distinguishes a limit that's actually
+/// honored from one that's merely written down.
 actor ConcurrencyProbe {
     private(set) var current = 0
     private(set) var peak = 0

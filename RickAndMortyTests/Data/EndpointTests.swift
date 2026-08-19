@@ -39,8 +39,8 @@ struct EndpointTests {
 
     @Test("Reserved characters in a search term are percent-encoded")
     func encodesSearchTerm() throws {
-        // Montando la URL a base de interpolar strings, cualquiera de estos casos
-        // habría acabado en una petición mal formada
+        // Built by string interpolation, any of these cases would have ended up as a
+        // malformed request
         let url = try url(RickAndMortyAPI.characters(page: 1, filter: CharacterFilter(name: "rick & morty")))
         let query = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
 
@@ -63,17 +63,17 @@ struct EndpointTests {
 
     @Test("Requests ask for JSON")
     func requestShape() throws {
-        // El método no se comprueba: Endpoint no lo pone, y URLRequest ya es GET por
-        // defecto, que es el único que usa una API de solo lectura
+        // The method isn't checked: Endpoint doesn't set one, and URLRequest already
+        // defaults to GET — the only one a read-only API uses
         let request = try #require(RickAndMortyAPI.character(id: 1).urlRequest(base: base))
         #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
     }
 
     @Test("Typed criteria travel trimmed: the server never sees the surrounding spaces")
     func sendsTrimmedValues() throws {
-        // La barra de búsqueda de iOS reescribe el texto con espacios al perder el foco.
-        // Si viajaran, "rick " y "rick" serían dos entradas distintas en la caché de
-        // URLSession para la misma búsqueda.
+        // iOS's search bar leaves trailing spaces when it loses focus. If they
+        // traveled, "rick " and "rick" would be two different URLSession cache entries
+        // for the same search.
         let filter = CharacterFilter(name: "  rick ", species: " Human\n")
         let url = try url(RickAndMortyAPI.characters(page: 1, filter: filter))
         let query = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
@@ -84,11 +84,11 @@ struct EndpointTests {
 
     @Test("A refresh revalidates; every other load takes what the cache has, at the same URL")
     func freshnessBecomesACachePolicy() throws {
-        // La API sirve las páginas con noventa días de caducidad: con la política normal
-        // una página ya vista sale de la caché sin tocar la red. El pull to refresh es la
-        // única carga que tiene que preguntar al servidor, y lo hace con una condicional
-        // sobre la misma URL, no con otra petición: si la URL cambiara, no habría ETag
-        // guardado que mandar.
+        // The API serves pages with a ninety-day expiry: under the normal policy, a
+        // page already seen comes straight from cache without touching the network.
+        // Pull-to-refresh is the only load that must ask the server, and it does so
+        // with a conditional request on the same URL, not a different one — if the URL
+        // changed, there'd be no stored ETag to send.
         let cached = RickAndMortyAPI.characters(page: 1, freshness: .acceptCached)
         let fresh = RickAndMortyAPI.characters(page: 1, freshness: .fresh)
 
@@ -99,9 +99,9 @@ struct EndpointTests {
 
     @Test("The cache policy travels with the request, not just with the endpoint")
     func cachePolicyReachesTheRequest() throws {
-        // La sesión tiene una política por defecto; la de la petición manda sobre ella.
-        // Es lo que permite que la misma sesión sirva de caché al navegar y revalide al
-        // refrescar.
+        // The session has a default policy; the request's overrides it. That's what
+        // lets the same session serve as cache while browsing and revalidate on
+        // refresh.
         let request = try #require(RickAndMortyAPI.characters(page: 1, freshness: .fresh).urlRequest(base: base))
         #expect(request.cachePolicy == .reloadRevalidatingCacheData)
     }

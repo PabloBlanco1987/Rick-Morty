@@ -2,9 +2,8 @@ import Foundation
 import Testing
 @testable import RickAndMorty
 
-// Los DTO se decodifican con el mismo decodificador que usa la app, para que lo que
-// entra al mapper sea exactamente lo que entraría en producción. El tipo lo infiere el
-// sitio que lo pide.
+// DTOs are decoded with the same decoder the app uses, so what reaches the mapper is
+// exactly what would reach it in production. The type is inferred by the caller.
 private func decode<DTO: Decodable>(_ json: String) throws -> DTO {
     try JSONDecoder.rickAndMorty.decode(DTO.self, from: Data(json.utf8))
 }
@@ -49,10 +48,10 @@ struct CharacterMapperTests {
         arguments: ["not a url", "/api/character/avatar/1.jpeg", "rickandmortyapi.com/avatar/1.jpeg", "https://"]
     )
     func relativeOrSchemelessImageBecomesNil(raw: String) throws {
-        // Desde iOS 17, URL(string:) acepta casi cualquier texto: "not a url" pasa como
-        // referencia relativa y solo "" da nil. Sin la comprobación de esquema y host,
-        // estos cuatro llegarían a la descarga como URLs y fallarían allí, en vez de
-        // caer en el placeholder desde el principio.
+        // Since iOS 17, URL(string:) accepts almost any text: "not a url" parses as a
+        // relative reference and only "" returns nil. Without the scheme-and-host
+        // check, these four would reach the download as URLs and fail there, instead of
+        // falling back to the placeholder up front.
         let rick: CharacterDTO = try decode(JSONFixtures.rick)
         let dto = CharacterDTO(
             id: rick.id,
@@ -72,9 +71,9 @@ struct CharacterMapperTests {
 
     @Test("The API's 'unknown' place is an absence, not a word to show")
     func unknownPlaceBecomesNil() throws {
-        // La API manda el literal "unknown" cuando no sabe el origen o la ubicación. En
-        // el dominio eso es nil, para que sea la pantalla —y no cada sitio que lo
-        // pinte— la que decida cómo se dice, y en qué idioma.
+        // The API sends the literal "unknown" when it doesn't know the origin or
+        // location. In the domain that's nil, so the screen — not every place that
+        // renders it — decides how to say it, and in what language.
         let glitch = CharacterMapper.map(try decode(JSONFixtures.malformedCharacter))
         let rick = CharacterMapper.map(try decode(JSONFixtures.rick))
 
@@ -90,8 +89,9 @@ struct CharacterMapperTests {
 
     @Test("A page carries the number it was asked for plus the API's totals")
     func mapsWholePage() throws {
-        // La API no dice qué página es —solo cuántas hay—, así que el número lo pone
-        // quien la pidió. Se pide la 3 y no la 1 para que un literal no pase por bueno.
+        // The API doesn't say which page it is — only how many there are — so the
+        // number comes from whoever asked for it. Page 3, not 1, so a hardcoded literal
+        // can't pass by accident.
         let page = CharacterMapper.map(try decode(JSONFixtures.charactersPage), page: 3)
 
         #expect(page.items.count == 2)
@@ -105,9 +105,8 @@ struct CharacterMapperTests {
 struct EpisodeMapperTests {
     @Test("Parses the API's US-English air date regardless of device locale, as midnight GMT")
     func parsesAirDate() throws {
-        // Medianoche en GMT y no en la zona del dispositivo: es un día de calendario, no
-        // un instante, y así quien lo formatee en GMT enseña el mismo día en cualquier
-        // parte del mundo
+        // Midnight in GMT, not the device's time zone: it's a calendar day, not an
+        // instant, so formatting it in GMT shows the same day anywhere in the world
         let episode = EpisodeMapper.map(try decode(JSONFixtures.singleEpisode))
         let airDate = try #require(episode.airDate)
         let components = Calendar(identifier: .gregorian).dateComponents(in: .gmt, from: airDate)

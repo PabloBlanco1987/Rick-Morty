@@ -2,20 +2,20 @@ import Foundation
 import Testing
 @testable import RickAndMorty
 
-// El limitador es la pieza que decide cuándo se sale a la red, así que lo que se prueba
-// son decisiones: cuánto se retiene, a qué ritmo se vuelve y qué se hace con lo que dice
-// el servidor. Donde hace falta un reloj de verdad —que una espera de fichas exista— se
-// mide con márgenes que una máquina lenta solo puede agrandar, nunca romper.
+/// The limiter is what decides when a request reaches the network, so what's under test
+/// is its decisions: how long to hold, how fast it resumes, and what it does with what
+/// the server says. Where a real clock matters — that a token wait actually happens — the
+/// margins are sized so a slow machine can only widen them, never break them.
 @Suite("Rate limiter")
 struct RateLimiterTests {
-    // MARK: - El freno compartido
+    // MARK: - The shared brake
 
     @Test("A rate limited response puts every request on hold, not just its own")
     func aRateLimitHoldsEveryone() async throws {
-        // Es lo que separa recuperarse de hundirse más: si cada imagen reintentase su
-        // propio 429, el reintento repetiría la ráfaga que se ganó el límite y ya no se
-        // saldría de ahí. El freno es compartido porque el límite también lo es: dos
-        // peticiones que no tienen nada que ver con la que recibió el 429 esperan las dos.
+        // This is what separates recovering from sinking further: if each image
+        // retried its own 429, the retry would repeat the burst that triggered the
+        // limit and never escape it. The brake is shared because the limit is
+        // shared: two requests unrelated to the one that got the 429 both wait.
         let sut = RateLimiter(coolOff: .milliseconds(80))
         let clock = ContinuousClock()
 
@@ -30,8 +30,8 @@ struct RateLimiterTests {
 
     @Test("The hold lifts on its own: the next request waits it out and goes through")
     func theHoldLiftsOnItsOwn() async throws {
-        // Que la espera exista es lo que se mide; que termine, que acquire() vuelva. Que
-        // un acierto borre la racha lo prueba aSuccessResetsTheEscalation.
+        // What's measured is that the wait exists; that it ends, that acquire()
+        // returns. That a success clears the streak is proven by aSuccessResetsTheEscalation.
         let sut = RateLimiter(coolOff: .milliseconds(50))
         await sut.reportRateLimited(retryAfter: nil)
 
@@ -43,8 +43,9 @@ struct RateLimiterTests {
 
     @Test("Each consecutive 429 doubles the hold, up to eight times the base")
     func consecutiveRateLimitsDoubleTheHold() async {
-        // Si el servidor sigue diciendo que no, insistir al mismo ritmo es alargar el
-        // castigo. Y hay tope: sin él, una mala racha dejaría la app muda minutos.
+        // If the server keeps saying no, insisting at the same rate just extends
+        // the punishment. And there's a cap: without one, a bad streak would leave
+        // the app silent for minutes.
         let sut = RateLimiter(coolOff: .seconds(10))
 
         await sut.reportRateLimited(retryAfter: nil)
@@ -72,8 +73,8 @@ struct RateLimiterTests {
 
     @Test("When the server says how long to wait, that is what is waited")
     func honoursRetryAfter() async {
-        // Cloudflare sabe mejor que nosotros cuánto queda de castigo. Con una base de
-        // diez segundos, que la espera sea de uno solo puede venir del encabezado.
+        // Cloudflare knows better than we do how much punishment is left. With a
+        // ten-second base, a one-second wait can only come from the header.
         let sut = RateLimiter(coolOff: .seconds(10))
 
         await sut.reportRateLimited(retryAfter: .seconds(1))
@@ -83,8 +84,8 @@ struct RateLimiterTests {
 
     @Test("A Retry-After beyond reason is capped")
     func capsRetryAfter() async {
-        // Un encabezado disparatado no puede dejar la app muda medio minuto sin más
-        // razón que un número
+        // An outlandish header can't leave the app silent for half a minute for no
+        // reason but a number
         let sut = RateLimiter()
 
         await sut.reportRateLimited(retryAfter: .seconds(600))
@@ -103,15 +104,15 @@ struct RateLimiterTests {
         await #expect(throws: AppError.cancelled) { try await waiting.value }
     }
 
-    // MARK: - Lo que salió antes del freno no cuenta
+    // MARK: - What happened before the brake doesn't count
 
     @Test("A 429 from a request that was already in flight when the hold started does not escalate it")
     func aRateLimitFromBeforeTheHoldDoesNotCount() async {
-        // Cuando Cloudflare corta, los cuatro huecos de imágenes y la página en vuelo
-        // contestan 429 casi a la vez. Contados uno a uno, un solo aviso del servidor
-        // dejaba el freno en ocho veces la base y el ritmo en el suelo. Todo lo que
-        // salió antes de ponerse el freno pertenece a la misma ráfaga: el primero lo pone
-        // y los demás no añaden nada.
+        // When Cloudflare cuts off, the four image slots and the in-flight page
+        // all answer 429 almost at once. Counted one by one, a single server
+        // warning would leave the brake at eight times the base and the rate on
+        // the floor. Everything that went out before the brake was set belongs to
+        // the same burst: the first one sets it and the rest add nothing.
         let sut = RateLimiter(maxRate: 8, coolOff: .seconds(10))
         let issuedBeforeTheHold = ContinuousClock.now
 
@@ -125,9 +126,10 @@ struct RateLimiterTests {
 
     @Test("A success from before the hold says nothing about now: it neither resets the count nor recovers rate")
     func aSuccessFromBeforeTheHoldDoesNotCount() async {
-        // Una petición que salió antes del freno y contestó bien habla de cómo estaba el
-        // servidor antes de decir que no, no de cómo está ahora. Si borrase la racha, el
-        // siguiente 429 volvería a la espera base y el freno no escalaría nunca.
+        // A request that went out before the brake and came back fine says how
+        // the server was doing before it said no, not how it's doing now. If it
+        // cleared the streak, the next 429 would fall back to the base wait and
+        // the brake would never escalate.
         let sut = RateLimiter(maxRate: 8, coolOff: .seconds(10), recoveryStreak: 1)
         let issuedBeforeTheHold = ContinuousClock.now
 
@@ -137,20 +139,20 @@ struct RateLimiterTests {
 
         await sut.reportRateLimited(retryAfter: nil)
 
-        // Si el acierto viejo hubiera contado, este sería el primer 429 de una racha
-        // nueva y la espera volvería a ser la base; que la escalación siga es la prueba
-        // de que no ha contado. El caso contrario —un acierto de después sí recupera
-        // ritmo— ya lo cubre adaptsTheRate.
+        // If the old success had counted, this would be the first 429 of a new
+        // streak and the wait would fall back to the base; that the escalation
+        // continues proves it didn't count. The opposite case — a later success
+        // does recover rate — is already covered by adaptsTheRate.
         #expect(await sut.remainingCoolOff.isAbout(.seconds(20)))
     }
 
-    // MARK: - El ritmo adaptativo
+    // MARK: - The adaptive rate
 
     @Test("A 429 halves the rate, down to a floor; successes bring it back one step at a time")
     func adaptsTheRate() async {
-        // Baja a la mitad y sube de uno en uno: es más barato equivocarse por lento que
-        // volver a ganarse el freno. Y el suelo evita que una mala racha deje el ritmo
-        // en cero, que sería no volver a pedir nunca.
+        // Halves on the way down, climbs one step at a time: it's cheaper to err
+        // slow than to earn the brake again. And the floor keeps a bad streak from
+        // dropping the rate to zero, which would mean never requesting again.
         let sut = RateLimiter(maxRate: 8, minRate: 2, coolOff: .zero, recoveryStreak: 3)
 
         await sut.reportRateLimited(retryAfter: nil)
@@ -170,9 +172,10 @@ struct RateLimiterTests {
 
     @Test("A 429 wipes a recovery streak in progress: the climb starts over")
     func aRateLimitResetsThePartialStreak() async {
-        // Dos aciertos de tres no son ritmo ganado hasta que llega el tercero, y un 429
-        // entre medias los borra: si contaran, el primer acierto de después subiría el
-        // ritmo justo cuando el servidor acaba de pedir lo contrario
+        // Two successes out of three aren't earned rate until the third arrives,
+        // and a 429 in between wipes them: if they counted, the first success
+        // afterward would raise the rate right when the server just asked for the
+        // opposite
         let sut = RateLimiter(maxRate: 8, minRate: 2, coolOff: .zero, recoveryStreak: 3)
         await sut.reportRateLimited(retryAfter: nil)
         for _ in 0..<2 { await sut.reportSuccess() }
@@ -194,14 +197,14 @@ struct RateLimiterTests {
         #expect(await sut.currentRate == 8)
     }
 
-    // MARK: - El cubo de fichas
+    // MARK: - The token bucket
 
     @Test("Requests within the burst go straight through; the next one waits for a token")
     func spacesRequestsBeyondTheBurst() async throws {
-        // Diez fichas por segundo con tres de ráfaga: las tres primeras salen ya y la
-        // cuarta tiene que esperar a que se genere una, unos cien milisegundos. Es la
-        // diferencia entre limitar cuántas van a la vez y limitar cuántas salen por
-        // segundo, que es lo que cuenta el servidor.
+        // Ten tokens per second with a burst of three: the first three go out
+        // right away and the fourth waits for one to be generated, about a hundred
+        // milliseconds. That's the difference between limiting how many go at once
+        // and limiting how many go out per second, which is what the server counts.
         let sut = RateLimiter(maxRate: 10, burst: 3)
         let clock = ContinuousClock()
 
@@ -212,21 +215,23 @@ struct RateLimiterTests {
             try await sut.acquire()
         }
 
-        // Una máquina lenta solo puede alargar la cuarta, y ni la más lenta tarda medio
-        // segundo en tres llamadas que no esperan a nada
+        // A slow machine can only make the fourth one longer, and even the
+        // slowest doesn't take half a second for three calls that wait on nothing
         #expect(burst < .milliseconds(500))
         #expect(fourth >= .milliseconds(80))
     }
 
     @Test("A 429 empties the bucket and keeps it empty through the hold, so nothing bursts out when it lifts")
     func theBucketStaysEmptyThroughTheHold() async throws {
-        // Ni la ráfaga que quedaba sirve, ni se acumula otra mientras dura el freno: si el
-        // cubo se llenara mientras tanto, al levantarse saldría una ráfaga entera de golpe,
-        // que es justo lo que acaba de decir el servidor que no quiere.
-        // Con el ritmo ya a la mitad —diez por segundo— y el cubo vacío, tres peticiones
-        // seguidas son el freno más tres fichas de cien milisegundos: medio segundo. Si el
-        // cubo se llenara durante el freno, dos de las tres saldrían nada más levantarse y
-        // el total no pasaría de 300 ms.
+        // Neither the leftover burst survives, nor does another build up while
+        // the brake holds: if the bucket refilled meanwhile, lifting the brake
+        // would release a whole burst at once — exactly what the server just said
+        // it doesn't want.
+        // With the rate already halved — ten per second — and the bucket empty,
+        // three requests in a row cost the brake plus three hundred-millisecond
+        // tokens: half a second. If the bucket refilled during the brake, two of
+        // the three would go out right as it lifted and the total wouldn't exceed
+        // 300 ms.
         let sut = RateLimiter(maxRate: 20, burst: 3, coolOff: .milliseconds(200))
         let clock = ContinuousClock()
 
@@ -235,15 +240,15 @@ struct RateLimiterTests {
             for _ in 0..<3 { try await sut.acquire() }
         }
 
-        // Una máquina lenta solo puede alargar la espera, nunca acortarla
+        // A slow machine can only lengthen the wait, never shorten it
         #expect(elapsed >= .milliseconds(450))
     }
 
     @Test("Waiting for a token can be cancelled too")
     func cancellingWhileWaitingForATokenThrowsCancelled() async throws {
-        // Es el otro sitio donde acquire() duerme. Una celda que se va mientras espera
-        // ficha no puede quedarse aparcada hasta que le toque, ni salir a la red cuando
-        // le toque: quien esperaba ya no quiere salir.
+        // This is the other place acquire() sleeps. A cell that leaves while
+        // waiting for a token can't stay parked until its turn, nor go out to the
+        // network when its turn comes: whoever was waiting no longer wants to go.
         let sut = RateLimiter(maxRate: 1, burst: 1)
         try await sut.acquire()
 
@@ -255,8 +260,8 @@ struct RateLimiterTests {
 
     @Test("The disabled limiter never waits and never holds, whatever the server says")
     func disabledDoesNothing() async throws {
-        // Es el que usan los tests del cliente HTTP y las previews: un 429 con
-        // Retry-After no puede dejar el freno puesto para el siguiente
+        // This is what the HTTP client tests and previews use: a 429 with
+        // Retry-After can't leave the brake engaged for the next one
         let sut = RateLimiter.disabled
         let clock = ContinuousClock()
 
@@ -282,8 +287,9 @@ struct RetryAfterHeaderTests {
         arguments: [nil, "0", "-3", "Wed, 21 Oct 2015 07:28:00 GMT"]
     )
     func ignoresWhatIsNotAPositiveNumber(raw: String?) throws {
-        // La forma con fecha se ignora a propósito: Cloudflare no la usa y parsearla
-        // sería más código que valor. Sin dato, el limitador usa su propia espera.
+        // The date form is ignored on purpose: Cloudflare doesn't use it and
+        // parsing it would be more code than it's worth. With no value, the
+        // limiter falls back to its own wait.
         #expect(try response(retryAfter: raw).retryAfter == nil)
     }
 
@@ -298,9 +304,9 @@ struct RetryAfterHeaderTests {
 }
 
 private extension Optional where Wrapped == Duration {
-    // Lo que queda de un freno recién puesto: el objetivo menos los microsegundos que
-    // haya tardado en llegar la comprobación. Un segundo de margen sobra en cualquier
-    // máquina y sigue distinguiendo diez de veinte.
+    // What's left of a brake just set: the target minus however many microseconds
+    // the check took to run. A one-second margin is plenty on any machine and
+    // still tells ten apart from twenty.
     func isAbout(_ target: Duration) -> Bool {
         guard let self else { return false }
         return self > target - .seconds(1) && self <= target

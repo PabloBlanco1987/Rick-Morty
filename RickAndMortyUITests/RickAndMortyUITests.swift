@@ -1,37 +1,36 @@
 import XCTest
 
-// El mismo literal que lee la app al arrancar (LaunchEnvironment.stubbedFlag). Escrito
-// una vez para todo el target de UI, para que no aparezca suelto en cada test ni en el
-// de arranque.
+/// Same literal the app reads at launch (LaunchEnvironment.stubbedFlag). Defined once
+/// for the whole UI target so it isn't scattered across every test, launch test included.
 enum LaunchFlags {
     static let stubbedData = "-stubbed-data"
-    // Además de lo anterior, un pull to refresh falla (LaunchEnvironment.refreshFailsFlag)
+    // On top of the above, a pull-to-refresh fails (LaunchEnvironment.refreshFailsFlag)
     static let stubbedRefreshFails = "-stubbed-refresh-fails"
-    // El tamaño de letra más grande de accesibilidad, para toda la app y sin tocar los
-    // ajustes del simulador. Es el argumento que UIKit lee al arrancar.
+    // Largest accessibility text size, app-wide, without touching simulator settings —
+    // the argument UIKit reads at launch.
     static let largestAccessibilityTextSize = [
         "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
     ]
 }
 
-// Los recorridos que un usuario hace de verdad, contra la app entera.
-//
-// Van con datos en memoria, no contra la API: un test de interfaz que dependa de la red
-// se pone rojo el día que no hay cobertura, el día que la API contesta 429 —que con
-// este proyecto es cualquier día— y el día que alguien añade un personaje. Ninguna de
-// esas tres cosas es un fallo de la app, y un test que falla sin que nadie haya roto
-// nada acaba ignorándose, que es la peor forma de perder una suite.
-//
-// Lo que se comprueba aquí es lo que las pruebas unitarias no pueden ver: que las
-// piezas están conectadas. El view model se prueba entero en RickAndMortyTests; que
-// tocar una celda lleve al detalle correcto, no.
+/// Real end-to-end user flows against the whole app.
+///
+/// Runs against in-memory stub data, not the live API — a UI test that depends on the
+/// network turns red the day there's no coverage, the day the API returns 429 (any day,
+/// for this project), or the day someone adds a character. None of those is an app
+/// failure, and a test that fails without anyone breaking anything gets ignored, which
+/// is the fastest way to lose a whole suite.
+///
+/// What this checks is what unit tests can't see: that the pieces are wired together.
+/// The view model is fully covered in RickAndMortyTests; that tapping a cell opens the
+/// right detail is not.
 final class RickAndMortyUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
-    // Cada test arranca la app por su cuenta. Es lo que evita guardarla en una propiedad
-    // implícitamente desenvuelta que hay que recordar vaciar en el tearDown.
+    // Each test launches its own app instance — avoids storing it in an implicitly
+    // unwrapped property that needs remembering to clear in tearDown.
     @MainActor
     private func launchApp(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
@@ -59,14 +58,14 @@ final class RickAndMortyUITests: XCTestCase {
 
         cell.tap()
 
-        // El nombre del detalle es el de la celda que se tocó: es lo que prueba que la
-        // navegación por valor lleva el personaje correcto y no simplemente "un detalle"
+        // The detail's name matches the tapped cell — proves value-based navigation
+        // carries the right character, not just "a detail"
         XCTAssertTrue(
             app.navigationBars["Rick Sanchez"].waitForExistence(timeout: 5),
             "The detail did not open for the character that was tapped"
         )
-        // Y sus episodios llegan y se pintan: la cabecera "Episodes" también está durante
-        // el esqueleto, así que lo que prueba que la carga ha terminado es una fila
+        // And its episodes load and render: the "Episodes" header is also present during
+        // the skeleton, so a row is what proves loading has finished
         XCTAssertTrue(app.staticTexts["Episodes"].exists)
         XCTAssertTrue(app.staticTexts["Episode 1"].waitForExistence(timeout: 5), "The episode list never loaded")
         XCTAssertTrue(app.staticTexts["S01E01"].exists)
@@ -74,10 +73,9 @@ final class RickAndMortyUITests: XCTestCase {
 
     @MainActor
     func testScrollingToTheEndLoadsTheNextPage() throws {
-        // El stub tiene veinticinco personajes y pagina de veinte en veinte: los últimos
-        // cinco solo existen si al acercarse al final se ha pedido la segunda página. Es
-        // el scroll infinito de punta a punta: la celda aparece, el view model pide, la
-        // rejilla crece.
+        // The stub has 25 characters, paginated 20 at a time — the last 5 only exist if
+        // scrolling near the end triggered the second page. End-to-end infinite scroll:
+        // the cell appears, the view model requests, the grid grows.
         let app = launchApp()
         XCTAssertTrue(app.buttons["character-1"].waitForExistence(timeout: 5))
 
@@ -88,11 +86,11 @@ final class RickAndMortyUITests: XCTestCase {
 
     @MainActor
     func testComingBackFromTheDetailKeepsTheList() throws {
-        // Volver del detalle no puede costar otra carga: el .task de la lista se dispara
-        // otra vez al reaparecer, y por eso el view model solo carga si está en idle. Se
-        // baja hasta la segunda página antes de entrar porque es lo que hace la prueba
-        // observable: si al volver se recargara, la lista volvería a la primera página y
-        // el personaje 21 —que solo existe en la segunda— habría desaparecido.
+        // Coming back from the detail must not trigger another load: the list's .task
+        // fires again on reappearance, so the view model only loads while idle. Scrolls
+        // to the second page before entering because that's what makes it observable —
+        // if coming back reloaded, the list would reset to page one and character 21
+        // (only on page two) would vanish.
         let app = launchApp()
         XCTAssertTrue(app.buttons["character-1"].waitForExistence(timeout: 5))
         let cell = app.buttons["character-21"]
@@ -117,8 +115,7 @@ final class RickAndMortyUITests: XCTestCase {
         searchField.tap()
         searchField.typeText("Summer")
 
-        // Summer Smith es el personaje 3: al buscar tiene que quedarse él y desaparecer
-        // los demás
+        // Summer Smith is character 3 — searching should leave only her and hide the rest
         XCTAssertTrue(app.buttons["character-3"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["character-1"].exists)
 
@@ -136,13 +133,13 @@ final class RickAndMortyUITests: XCTestCase {
         searchField.tap()
         searchField.typeText("zzzzzzzz")
 
-        // Sin resultados no es un fallo: la pantalla que sale ofrece quitar lo que se
-        // buscó, no reintentar. Y dice "búsqueda", no "filtros": no se ha tocado ninguno
+        // No results isn't a failure: the screen offers clearing the search, not
+        // retrying. And it says "search", not "filters" — none were touched
         XCTAssertTrue(app.staticTexts["No matches"].waitForExistence(timeout: 5))
         let clear = app.buttons["Clear search"]
         XCTAssertTrue(clear.exists)
 
-        // Y ese botón devuelve la lista entera
+        // And that button brings back the whole list
         clear.tap()
         XCTAssertTrue(app.buttons["character-1"].waitForExistence(timeout: 5))
     }
@@ -159,8 +156,8 @@ final class RickAndMortyUITests: XCTestCase {
         app.buttons["Dead"].tap()
         app.buttons["Done"].tap()
 
-        // Rick está vivo, así que con el filtro puesto no puede seguir en la lista;
-        // Bird Person, que es el 7, sí
+        // Rick is alive, so with the filter applied he can't still be in the list;
+        // Bird Person, character 7, should be
         XCTAssertTrue(app.buttons["character-7"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["character-1"].exists)
     }
@@ -170,13 +167,13 @@ final class RickAndMortyUITests: XCTestCase {
         let app = launchApp()
         XCTAssertTrue(app.buttons["character-1"].waitForExistence(timeout: 5))
 
-        // Sin nada puesto, "Clear" no hace nada y no se puede tocar
+        // With nothing set, "Clear" does nothing and can't be tapped
         app.navigationBars.buttons["Filters"].tap()
         let clear = app.buttons["Clear"]
         XCTAssertTrue(clear.waitForExistence(timeout: 5))
         XCTAssertFalse(clear.isEnabled, "Clear must be disabled while no filter is active")
 
-        // Con un filtro puesto se enciende, y al tocarlo la lista vuelve entera
+        // With a filter set it lights up, and tapping it brings the whole list back
         app.buttons["filter-status"].tap()
         app.buttons["Dead"].tap()
         XCTAssertTrue(clear.isEnabled)
@@ -188,9 +185,9 @@ final class RickAndMortyUITests: XCTestCase {
 
     // MARK: - Dynamic Type
 
-    // Las tres pantallas con el tamaño de letra más grande que existe. Lo que se
-    // comprueba es que a ese tamaño todo sigue en pantalla y se puede tocar: la celda,
-    // el detalle al que lleva y los selectores de la hoja de filtros.
+    // The three screens at the largest text size that exists. Checks that everything
+    // stays on screen and tappable at that size: the cell, the detail it opens, and the
+    // filter sheet's pickers.
     @MainActor
     func testTheScreensStayUsableAtTheLargestTextSize() throws {
         let app = launchApp(arguments: LaunchFlags.largestAccessibilityTextSize)
@@ -210,7 +207,7 @@ final class RickAndMortyUITests: XCTestCase {
         XCTAssertTrue(statusPicker.isHittable)
     }
 
-    // MARK: - Refresco fallido
+    // MARK: - Failed refresh
 
     @MainActor
     func testAFailedRefreshKeepsTheListAndShowsANoticeThatCanBeDismissed() throws {
@@ -218,34 +215,34 @@ final class RickAndMortyUITests: XCTestCase {
         let cell = app.buttons["character-1"]
         XCTAssertTrue(cell.waitForExistence(timeout: 5))
 
-        // Tirar de la lista hacia abajo, como haría el usuario
+        // Pull the list down, like the user would
         let start = cell.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
         let end = start.withOffset(CGVector(dx: 0, dy: 500))
         start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.5)
 
-        // El aviso aparece, dice qué ha pasado y qué significa, y la lista sigue ahí
+        // The notice appears, says what happened and what it means, and the list stays
         let notice = app.buttons["refresh-failed"]
         XCTAssertTrue(notice.waitForExistence(timeout: 5), "The refresh failure notice never appeared")
         XCTAssertTrue(notice.label.contains("No connection"))
         XCTAssertTrue(notice.label.contains("out of date"))
         XCTAssertTrue(app.buttons["character-1"].exists, "A failed refresh must not take the list away")
 
-        // Y se descarta tocándolo
+        // And it's dismissed by tapping it
         notice.tap()
         XCTAssertTrue(notice.waitForNonExistence(timeout: 3))
     }
 
     // MARK: - Helpers
 
-    // Baja por la rejilla hasta que la celda pedida exista, con un tope: la rejilla es
-    // perezosa, así que una celda que aún no se ha creado no existe para XCTest, y la
-    // única forma de llegar a ella es hacer scroll como lo haría el usuario. Con veinte
-    // celdas por página y dos por fila, ocho pantallas sobran.
+    // Scrolls the grid until the requested cell exists, with a cap: the grid is lazy, so
+    // a cell that hasn't been created yet doesn't exist for XCTest, and the only way to
+    // reach it is scrolling like the user would. With 20 cells per page and 2 per row, 8
+    // screens are plenty.
     @MainActor
     private func scroll(_ app: XCUIApplication, untilExists element: XCUIElement, maxSwipes: Int = 8) {
         for _ in 0..<maxSwipes {
-            // Un respiro entre gesto y gesto, para que una página que se acabe de pedir
-            // llegue a pintarse antes de dar el siguiente
+            // A pause between gestures, so a page that was just requested has time to
+            // render before the next one
             if element.waitForExistence(timeout: 1) { return }
             app.swipeUp()
         }

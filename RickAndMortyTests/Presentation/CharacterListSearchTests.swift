@@ -2,18 +2,18 @@ import Foundation
 import Testing
 @testable import RickAndMorty
 
-// La búsqueda y los filtros tienen su propia suite porque lo que prueban es otra cosa
-// que la paginación: allí se comprueba cómo crece la lista, aquí cómo se sustituye
-// entera y qué le llega al servidor al hacerlo.
+/// Search and filters get their own suite because they test something different from
+/// pagination: that suite checks how the list grows, this one checks how it gets fully
+/// replaced and what reaches the server when it does.
 @MainActor
 @Suite("Character list search and filters")
 struct CharacterListSearchTests {
-    // MARK: - Búsqueda
+    // MARK: - Search
 
     @Test("Typing waits for the user to stop before asking the server")
     func searchWaitsForTheTypingToSettle() async {
-        // La búsqueda es del servidor: sin esta espera, escribir "rick" son cuatro
-        // peticiones de las que solo importa la última.
+        // Search hits the server — without this wait, typing "rick" is four requests
+        // where only the last one matters.
         let waits = SleepRecorder()
         let repository = StubCharacterRepository(characters: .success(.stub(page: 1, totalPages: 1, ids: 1...3)))
         let sut = CharacterListViewModel.forTesting(repository, recordingWaitsInto: waits)
@@ -28,11 +28,10 @@ struct CharacterListSearchTests {
 
     @Test("A keystroke during the wait cancels the search that was waiting; only the last one goes out")
     func onlyTheLastKeystrokeIsSearched() async {
-        // Es lo que pasa de verdad al teclear: la búsqueda de "ric" está dentro de la
-        // espera cuando llega la "k", y se cancela antes de llegar a salir, así que el
-        // servidor solo ve el término completo. La espera se congela en un pestillo para
-        // que la segunda tecla llegue con la primera búsqueda de verdad esperando, y no
-        // antes de que haya empezado.
+        // What actually happens while typing: the "ric" search is still debouncing when
+        // "k" arrives, and it's cancelled before going out, so the server only sees the
+        // full term. The wait is held on a gate so the second keystroke arrives while the
+        // first search is genuinely waiting, not before it has even started.
         let debounce = AsyncGate()
         let repository = StubCharacterRepository(characters: .success(.stub(page: 1, totalPages: 1, ids: 1...3)))
         let sut = CharacterListViewModel(
@@ -52,8 +51,8 @@ struct CharacterListSearchTests {
 
     @Test("Trailing whitespace is not a new search")
     func whitespaceDoesNotTriggerASearch() async {
-        // La barra de búsqueda de iOS reescribe el texto al perder el foco. Sin la
-        // comparación sobre el término recortado, eso sería otra petición idéntica.
+        // iOS's search bar rewrites the text when it loses focus. Without comparing the
+        // trimmed term, that would trigger another identical request.
         let repository = StubCharacterRepository(characters: .success(.stub(page: 1, totalPages: 1, ids: 1...3)))
         let sut = CharacterListViewModel.forTesting(repository)
         await sut.onAppear()
@@ -84,9 +83,10 @@ struct CharacterListSearchTests {
 
     @Test("Typing a letter and deleting it within the wait asks for nothing")
     func typingAndDeletingWithinTheWaitDoesNotReload() async {
-        // Al final de la espera el criterio vuelve a ser el que ya está pintado, así que
-        // no hay nada que recargar: volver a pedirlo era tirar la lista, enseñar el
-        // esqueleto, perder el scroll y gastar una petición para acabar donde se estaba
+        // By the end of the wait the criteria is back to what's already on screen, so
+        // there's nothing to reload — re-requesting would discard the list, show the
+        // skeleton, lose the scroll position, and spend a request just to end up back
+        // where it started
         let repository = StubCharacterRepository(characters: .success(.stub(page: 1, totalPages: 1, ids: 1...3)))
         let sut = CharacterListViewModel.forTesting(repository)
         await sut.onAppear()
@@ -101,9 +101,9 @@ struct CharacterListSearchTests {
 
     @Test("Typing a search does not light up the filters, but it does narrow the list")
     func searchIsNotAFilter() async {
-        // La búsqueda tiene su propia barra y su propia forma de borrarse. Contarla como
-        // filtro encendía el icono de la hoja al teclear sin haber tocado un filtro, y
-        // el "Clear" de la hoja borraba un texto que no está en la hoja.
+        // Search has its own bar and its own way of clearing. Counting it as a filter
+        // would light up the sheet's icon just from typing, without touching a filter,
+        // and the sheet's "Clear" would erase text that isn't even in the sheet.
         let repository = StubCharacterRepository(characters: .success(.stub(page: 1, totalPages: 1, ids: 1...3)))
         let sut = CharacterListViewModel.forTesting(repository)
         await sut.onAppear()
@@ -118,10 +118,10 @@ struct CharacterListSearchTests {
 
     @Test("A search that lands after the user typed something else is not painted")
     func aLateResponseForAnOlderSearchIsDiscarded() async {
-        // onlyTheLastKeystrokeIsSearched cubre el caso en que la primera búsqueda ni
-        // llega a salir. Aquí sí sale, y llega tarde: la respuesta de "rick" se congela,
-        // la de "morty" sale y se pinta, y cuando por fin llega la de "rick" no puede
-        // sustituir a la que ya es la buena.
+        // onlyTheLastKeystrokeIsSearched covers the case where the first search never
+        // even goes out. Here it does go out, and arrives late: the "rick" response is
+        // held, "morty" goes out and renders, and when "rick" finally arrives it must
+        // not replace the response that's already correct.
         let gate = AsyncGate()
         let repository = StubCharacterRepository(
             charactersByPage: [1: .success(.stub(page: 1, totalPages: 1, ids: 1...3))]
@@ -149,9 +149,9 @@ struct CharacterListSearchTests {
 
     @Test("A page that arrives after the criteria changed does not land on the new list")
     func aLatePageForAnOlderCriterionIsDiscarded() async throws {
-        // La página dos de la lista sin filtro sigue en vuelo cuando el usuario elige un
-        // filtro. Si aterrizara, se pegaría al final de la lista filtrada: veinte
-        // personajes que no cumplen el filtro debajo de tres que sí.
+        // Page two of the unfiltered list is still in flight when the user picks a
+        // filter. If it landed, it would stick to the end of the filtered list: 20
+        // characters that don't match the filter, appended below the 3 that do.
         let gate = AsyncGate()
         let repository = StubCharacterRepository(charactersByPage: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
@@ -178,12 +178,12 @@ struct CharacterListSearchTests {
         #expect(!sut.isLoadingNextPage)
     }
 
-    // MARK: - Filtros
+    // MARK: - Filters
 
     @Test("Typing a species waits for the user to stop, like the search does")
     func speciesWaitsForTheTypingToSettle() async {
-        // La especie se teclea, no se elige de una lista: sin la espera, "Human" serían
-        // cinco peticiones de las que solo importa la última
+        // Species is typed, not picked from a list — without the wait, "Human" would be
+        // five requests where only the last one matters
         let waits = SleepRecorder()
         let repository = StubCharacterRepository(characters: .success(.stub(page: 1, totalPages: 1, ids: 1...3)))
         let sut = CharacterListViewModel.forTesting(repository, recordingWaitsInto: waits)
@@ -199,8 +199,8 @@ struct CharacterListSearchTests {
 
     @Test("Choosing a filter asks the server straight away, with no typing to wait for")
     func filtersDoNotWait() async {
-        // Un filtro se toca una vez, no se teclea: no hay ninguna tecla siguiente que
-        // esperar, así que hacerle esperar al usuario sería latencia regalada.
+        // A filter is tapped once, not typed — there's no next keystroke to wait for, so
+        // making the user wait would be latency for nothing.
         let waits = SleepRecorder()
         let repository = StubCharacterRepository(characters: .success(.stub(page: 1, totalPages: 1, ids: 1...3)))
         let sut = CharacterListViewModel.forTesting(repository, recordingWaitsInto: waits)
@@ -234,8 +234,9 @@ struct CharacterListSearchTests {
 
     @Test("A new filter replaces the list instead of appending to it")
     func filteringStartsTheListOver() async throws {
-        // Filtrar no es una página más: es otra lista. Si lo cargado no se tirase, el
-        // usuario acabaría viendo mezclados los resultados de dos búsquedas distintas.
+        // Filtering isn't one more page — it's a different list. If what was loaded
+        // weren't discarded, the user would end up seeing results from two different
+        // searches mixed together.
         let repository = StubCharacterRepository(charactersByPage: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .success(.stub(page: 2, totalPages: 3, ids: 6...10)),
@@ -254,8 +255,8 @@ struct CharacterListSearchTests {
 
     @Test("The next page is asked for with the filter that is active")
     func paginationKeepsTheFilter() async throws {
-        // Si la página dos saliera sin filtro, el scroll acabaría trayendo la lista
-        // entera por debajo de una búsqueda: un resultado que el usuario no ha pedido.
+        // If page two went out without the filter, scrolling would end up bringing the
+        // whole list in below a search — a result the user never asked for.
         let repository = StubCharacterRepository(charactersByPage: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .success(.stub(page: 2, totalPages: 3, ids: 6...10)),
@@ -273,8 +274,8 @@ struct CharacterListSearchTests {
 
     @Test("Clearing the filters keeps the search and asks the server again")
     func clearingFiltersReloads() async {
-        // La búsqueda no es un filtro de la hoja: tiene su propia barra y su propia
-        // forma de borrarse, así que "Clear" no puede llevársela por delante
+        // Search isn't a sheet filter — it has its own bar and its own way of clearing,
+        // so "Clear" must not take it down with it
         let repository = StubCharacterRepository(characters: .success(.stub(page: 1, totalPages: 1, ids: 1...3)))
         let sut = CharacterListViewModel.forTesting(repository)
         await sut.onAppear()
@@ -291,8 +292,8 @@ struct CharacterListSearchTests {
 
     @Test("Clearing filters that were already empty asks for nothing")
     func clearingNothingDoesNothing() async {
-        // El botón de limpiar sigue existiendo aunque no haya nada puesto; tocarlo no
-        // puede costar una recarga completa de la lista.
+        // The clear button still exists even with nothing set; tapping it must not cost
+        // a full list reload.
         let repository = StubCharacterRepository(characters: .success(.stub(page: 1, totalPages: 1, ids: 1...3)))
         let sut = CharacterListViewModel.forTesting(repository)
         await sut.onAppear()
@@ -305,8 +306,8 @@ struct CharacterListSearchTests {
 
     @Test("The empty screen's action clears the search and the filters together and asks again")
     func clearingSearchAndFiltersReloadsWithNothing() async {
-        // Es lo que ofrece la pantalla vacía: quitar todo lo que acota, la búsqueda
-        // incluida, y volver a la lista entera
+        // This is what the empty screen offers: clear everything narrowing the list,
+        // search included, and return to the full list
         let repository = StubCharacterRepository(characters: .success(.stub(page: 1, totalPages: 1, ids: 1...3)))
         let sut = CharacterListViewModel.forTesting(repository)
         await sut.onAppear()

@@ -69,15 +69,15 @@ struct RetryingHTTPClientTests {
 
         _ = try? await sut.send(anyEndpoint, as: CharacterDTO.self)
 
-        // Tres intentos son dos esperas: una antes del segundo y otra antes del tercero
+        // Three attempts mean two waits: one before the second, one before the third
         await #expect(recorder.durations == [.milliseconds(300), .milliseconds(600)])
     }
 
     @Test("Rate limiting is retried, and waited out for longer than a server stumble")
     func backsOffFurtherWhenRateLimited() async {
-        // Es lo que separa un scroll rápido que se recupera solo de uno que acaba en
-        // una pantalla de error: la API contesta 429 en cuanto le pides varias páginas
-        // seguidas, y eso se arregla esperando, no insistiendo a los 300 ms.
+        // This separates a fast scroll that recovers on its own from one that ends in
+        // an error screen: the API answers 429 as soon as you request several pages in
+        // a row, and that's fixed by waiting, not by retrying every 300ms.
         let (sut, stub, recorder) = makeSUT(outcomes: [.failure(.rateLimited)])
 
         await #expect(throws: AppError.rateLimited) {
@@ -101,15 +101,15 @@ struct RetryingHTTPClientTests {
 
     @Test("Being cancelled during the back-off stops retrying and is reported as cancelled")
     func cancellationDuringBackOffStopsRetrying() async {
-        // Si el usuario se ha ido de la pantalla mientras se esperaba al segundo intento,
-        // gastar los intentos que quedan es gastar peticiones en algo que nadie va a ver.
-        // Y lo que sale es .cancelled, no el error que provocó el reintento: la vista lo
-        // trata como "no hay nada que contar", no como un fallo.
+        // If the user has left the screen while waiting for the second attempt,
+        // spending the remaining attempts wastes requests on something nobody will see.
+        // What comes out is .cancelled, not the error that triggered the retry: the
+        // view treats it as "nothing to report", not a failure.
         let stub = StubHTTPClient([.failure(.timeout)])
         let sut = RetryingHTTPClient(
             wrapping: stub,
             policy: .default,
-            // Lo que hace Task.sleep cuando la tarea está cancelada
+            // What Task.sleep does when the task is cancelled
             sleep: { _ in throw CancellationError() }
         )
 

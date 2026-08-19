@@ -17,8 +17,8 @@ struct CharacterRemoteDataSourceTests {
 
     @Test("A single id answers with a bare object and still comes back as an array")
     func singleEpisodeIsWrapped() async throws {
-        // El endpoint cambia de forma según cuántos ids pidas, y este es el caso que
-        // rompe sin avisar si decodificas directamente a [EpisodeDTO].self
+        // The endpoint's shape changes with how many ids you ask for; this is the case
+        // that breaks silently if you decode straight to [EpisodeDTO].self
         let stub = StubHTTPClient(json: JSONFixtures.singleEpisode)
         let sut = CharacterRemoteDataSource(client: stub)
 
@@ -66,8 +66,8 @@ struct CharacterRemoteDataSourceTests {
 
     @Test("A fresh listing asks for an endpoint that revalidates")
     func freshListingRevalidates() async throws {
-        // El data source es quien traduce la frescura del dominio a la política de caché
-        // de la petición: si se perdiera aquí, el pull to refresh saldría de la caché
+        // The data source translates the domain's freshness into the request's cache
+        // policy: lose it here and pull-to-refresh would just serve from cache
         let stub = StubHTTPClient(json: JSONFixtures.charactersPage)
         let sut = CharacterRemoteDataSource(client: stub)
 

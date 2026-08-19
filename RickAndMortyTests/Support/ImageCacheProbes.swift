@@ -2,10 +2,10 @@ import Foundation
 import Testing
 @testable import RickAndMorty
 
-// Apoyos que comparten las suites de la caché de imágenes.
+// Shared helpers for the image cache suites.
 
-// Un directorio propio por test, borrado al salir: si no, un test leería del disco lo
-// que ha dejado otro y los aciertos de caché dejarían de significar nada
+// A private directory per test, removed on exit — otherwise a test could read what
+// another left on disk and cache hits would stop meaning anything.
 func withTemporaryDirectory<T>(_ body: (URL) async throws -> T) async throws -> T {
     let directory = URL.temporaryDirectory.appending(
         path: UUID().uuidString,
@@ -15,9 +15,9 @@ func withTemporaryDirectory<T>(_ body: (URL) async throws -> T) async throws -> 
     return try await body(directory)
 }
 
-// La baja del interesado cancelado la da un Task aparte —onCancel es síncrono y está
-// fuera del actor—, así que hay que esperar a que llegue. Se cede el turno en vez de
-// dormir: no depende del reloj, así que no falla en una máquina lenta.
+// A cancelled subscriber's removal happens on a separate Task — onCancel is synchronous
+// and outside the actor — so we must wait for it to land. Yields instead of sleeping:
+// doesn't depend on the clock, so it won't flake on a slow machine.
 func waitUntilNothingIsInFlight(in cache: ImageCache) async {
     for _ in 0..<10_000 {
         if await cache.inFlightCount == 0 { return }
@@ -26,7 +26,7 @@ func waitUntilNothingIsInFlight(in cache: ImageCache) async {
     Issue.record("The download was still in flight after its only request was cancelled")
 }
 
-// Lo mismo, para saber que una descarga ha llegado a la cola y está esperando hueco
+// Same idea, to know a download has reached the queue and is waiting for a slot.
 func waitUntilSomethingIsWaiting(in cache: ImageCache) async {
     for _ in 0..<10_000 {
         if await cache.waitingDownloadCount > 0 { return }
@@ -35,7 +35,7 @@ func waitUntilSomethingIsWaiting(in cache: ImageCache) async {
     Issue.record("No download ever reached the queue")
 }
 
-// Y lo mismo, para saber que tantas celdas se han enganchado a la descarga de una URL
+// Same again, to know that many cells have latched onto one URL's download.
 func waitUntil(_ count: Int, areWaitingFor url: URL, in cache: ImageCache) async {
     for _ in 0..<10_000 {
         if await cache.waiterCount(for: url) == count { return }

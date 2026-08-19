@@ -1,8 +1,8 @@
 import Foundation
 
-// Payloads copiados tal cual de rickandmortyapi.com.
-// Los guardo como literales y no como .json en el bundle para no montar nada de
-// recursos y para que ningún test pase en falso porque un fichero no se copió.
+/// Payloads copied verbatim from rickandmortyapi.com. Kept as literals rather than
+/// `.json` files in the bundle, to avoid any resource setup and so no test can fail
+/// falsely because a file wasn't copied.
 enum JSONFixtures {
     static let rick = #"""
     {
@@ -24,9 +24,8 @@ enum JSONFixtures {
     }
     """#
 
-    // Pasa por todos los caminos de degradación del mapper a la vez: un status y un
-    // gender que el enum no conoce, una imagen que no es URL y enlaces de episodio
-    // que no acaban en un id.
+    // Exercises every mapper degradation path at once: a status and gender the enum
+    // doesn't know, an image that isn't a URL, and episode links that don't end in an id.
     static let malformedCharacter = #"""
     {
       "id": 999,
@@ -71,13 +70,13 @@ enum JSONFixtures {
     }
     """#
 
-    // Lo que contesta de verdad /character/?name=zzzz: un 404 con este cuerpo, no un
-    // results vacío
+    // What /character/?name=zzzz actually returns: a 404 with this body, not an
+    // empty results.
     static let notFoundError = #"""
     { "error": "There is nothing here" }
     """#
 
-    // /episode/1, un objeto suelto
+    // /episode/1, a bare object.
     static let singleEpisode = #"""
     {
       "id": 1,
@@ -90,7 +89,7 @@ enum JSONFixtures {
     }
     """#
 
-    // /episode/1,2, un array. Mismo endpoint, otra forma
+    // /episode/1,2, an array. Same endpoint, different shape.
     static let episodeArray = #"""
     [
       {

@@ -51,9 +51,9 @@ struct CharacterFilterTests {
 
     @Test("Normalizing trims what was typed and leaves the rest alone")
     func normalizedTrimsTheTypedFields() {
-        // Es la forma en la que se comparan criterios: quien decide si hay que recargar
-        // y quien decide si una respuesta aún vale tienen que ver el mismo filtro, o un
-        // espacio de más tiraría una respuesta buena
+        // This is how criteria get compared: whoever decides a reload is needed and
+        // whoever decides a response is still valid must see the same filter, or one
+        // extra space would discard a good response
         let typed = CharacterFilter(name: "  rick ", status: .alive, gender: .male, species: " Human\n")
 
         #expect(typed.normalized == CharacterFilter(name: "rick", status: .alive, gender: .male, species: "Human"))
@@ -81,7 +81,7 @@ struct AppErrorTests {
 
     @Test("Being told to slow down earns more patience than a server stumble")
     func rateLimitingWaitsLonger() {
-        // Reintentar un "vas demasiado rápido" a los 300 ms es alargarse el castigo
+        // Retrying a "you're going too fast" at 300ms just extends the punishment
         #expect(AppError.rateLimited.retryPatience == .backOff)
         #expect(AppError.server(statusCode: 500).retryPatience == .brief)
         #expect(AppError.timeout.retryPatience == .brief)
@@ -132,8 +132,8 @@ struct FetchCharacterDetailUseCaseTests {
 
     @Test("The detail is all or nothing: if the episodes fail, the use case fails")
     func episodesFailureFailsTheDetail() async {
-        // Conservar el personaje que ya se tenía es cosa del view model; el caso de uso
-        // devuelve el detalle completo o no devuelve nada, y así no hay un tipo a medias
+        // Keeping the character already on screen is the view model's job; the use
+        // case returns the full detail or nothing, so there's no half-built type
         let repository = StubCharacterRepository(
             character: .success(.stub(episodeIDs: [1, 2])),
             episodes: .failure(.offline)
@@ -163,10 +163,10 @@ struct FetchCharactersUseCaseTests {
 
     @Test("Passes the freshness through, and settles for the cache unless told otherwise")
     func forwardsTheFreshness() async throws {
-        // Solo el pull to refresh pide datos frescos; el resto de cargas se conforman
-        // con lo guardado, que es lo que hace que volver del detalle no cueste una
-        // petición. Si el caso de uso perdiera el dato por el camino, el gesto de
-        // refrescar no refrescaría nada.
+        // Only pull-to-refresh asks for fresh data; every other load settles for the
+        // cache, which is what makes returning from the detail screen free of a
+        // request. If the use case dropped that flag along the way, the refresh
+        // gesture wouldn't refresh anything.
         let repository = StubCharacterRepository()
         let sut = FetchCharactersUseCase(repository: repository)
 

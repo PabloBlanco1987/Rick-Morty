@@ -4,11 +4,10 @@ import ImageIO
 import UniformTypeIdentifiers
 @testable import RickAndMorty
 
-// Imágenes de verdad, generadas al vuelo.
-// No vale con unos bytes cualesquiera: lo que se está probando es que ImageIO abra el
-// fichero y lo reduzca, así que el fixture tiene que ser un PNG que ImageIO reconozca.
-// Generarlo aquí en vez de meter un binario en el repo mantiene el proyecto sin
-// recursos que nadie sabe de dónde salieron y deja elegir el tamaño en cada test.
+/// Real images, generated on the fly. Arbitrary bytes won't do: what's under test is
+/// ImageIO opening the file and downsampling it, so the fixture must be a PNG ImageIO
+/// recognizes. Generating it here instead of committing a binary keeps the project free
+/// of resources nobody remembers the origin of, and lets each test pick its own size.
 enum ImageFixtures {
     enum Failure: Error {
         case couldNotRender
@@ -49,18 +48,17 @@ enum ImageFixtures {
     }
 }
 
-// Cargador de bytes que cuenta las llamadas y, si se le pide, se para antes de
-// contestar. Contar es lo que prueba que la caché no ha vuelto a descargar; pararse es
-// lo que permite tener dos peticiones en vuelo a la vez sin depender del reloj.
+/// A byte loader that counts calls and, on request, pauses before answering. Counting
+/// proves the cache didn't re-download; pausing lets two requests be in flight at once
+/// without depending on the clock.
 actor CountingImageLoader {
     private(set) var callCount = 0
-    // Si al reanudarse la descarga ya estaba cancelada. Es lo que prueba que cancelar
-    // la celda ha llegado hasta la petición y no se ha quedado a medio camino.
+    // Whether the download was already cancelled by the time it resumed. Proves
+    // cancelling the cell reached the request instead of stopping halfway.
     private(set) var wasCancelled = false
 
-    // Se contestan en orden y la última se repite: así un test puede dar unos bytes
-    // rotos primero y una imagen buena después, que es lo que hace un portal cautivo
-    // que deja de interceptar
+    // Answered in order, the last one repeating: lets a test return broken bytes
+    // first and a good image after, like a captive portal that stops intercepting.
     private var responses: [Data]
     private let beforeReturning: (@Sendable () async -> Void)?
     private var remainingFailures: Int
@@ -68,8 +66,8 @@ actor CountingImageLoader {
 
     init(
         returning data: Data,
-        // Las primeras llamadas fallan y a partir de ahí contesta bien, que es la
-        // forma de un fallo pasajero
+        // The first calls fail and it answers fine after that — the shape of a
+        // transient failure.
         failingFirst remainingFailures: Int = 0,
         with failure: AppError = .server(statusCode: 503),
         beforeReturning: (@Sendable () async -> Void)? = nil
@@ -96,12 +94,12 @@ actor CountingImageLoader {
     }
 
     func load(_ url: URL) async throws(AppError) -> Data {
-        // Se cuenta antes de pararse: si no, dos llamadas congeladas a la vez
-        // parecerían una
+        // Counted before pausing: otherwise two calls frozen at once would look
+        // like one.
         callCount += 1
         await beforeReturning?()
 
-        // Lo mismo que hace URLSession con una petición cancelada
+        // Same as what URLSession does with a cancelled request.
         if Task.isCancelled {
             wasCancelled = true
             throw .cancelled

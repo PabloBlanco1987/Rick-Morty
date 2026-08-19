@@ -3,22 +3,22 @@ import Foundation
 import Testing
 @testable import RickAndMorty
 
-// El precalentamiento de la página siguiente y la pausa durante el fling: las dos piezas
-// que hacen que a velocidad de lectura las celdas aparezcan ya con imagen y que un fling
-// no gaste cupo en celdas que nadie llega a ver.
+/// Warming the next page and pausing during a fling: the two mechanisms that make
+/// cells arrive with their image already loaded at reading speed, and keep a fling
+/// from spending its budget on cells nobody ends up seeing.
 @Suite("Image cache warm-up and pause")
 struct ImageCacheWarmUpTests {
     private let url = URL(filePath: "/avatars/1.jpeg")
     private let cellSize = CGSize(width: 100, height: 100)
     private let scale: CGFloat = 2
 
-    // MARK: - Precalentamiento
+    // MARK: - Warm-up
 
     @Test("Warming a page leaves its images on disk, so the cells find them without a download")
     func warmingLeavesTheBytesOnDisk() async throws {
         try await withTemporaryDirectory { directory in
-            // Es la sensación de una app que "ya lo tenía": cuando el usuario baja hasta
-            // la página que acaba de llegar, sus celdas salen del disco y no de la red.
+            // The feel of an app that "already had it": once the user scrolls to a page
+            // that just arrived, its cells load from disk, not the network.
             let loader = CountingImageLoader(returning: try ImageFixtures.png(side: 600))
             let sut = ImageCache(directory: directory, settleDelay: .zero, loader: loader.load)
             let urls = [URL(filePath: "/avatars/1.jpeg"), URL(filePath: "/avatars/2.jpeg")]
@@ -34,8 +34,8 @@ struct ImageCacheWarmUpTests {
     @Test("Warming what is already on disk costs no download")
     func warmingSkipsWhatIsOnDisk() async throws {
         try await withTemporaryDirectory { directory in
-            // Lo que ya está guardado ni se pide: es lo que hace que precalentar una página
-            // ya vista —volver atrás y adelante en el scroll— salga gratis
+            // What's already stored is never requested — this is what makes re-warming
+            // an already-seen page (scrolling back and forth) free.
             let loader = CountingImageLoader(returning: try ImageFixtures.png(side: 600))
             let sut = ImageCache(directory: directory, settleDelay: .zero, loader: loader.load)
             _ = try await sut.image(for: url, size: cellSize, scale: scale)
@@ -49,9 +49,9 @@ struct ImageCacheWarmUpTests {
     @Test("A warm-up does not wait for a cell to settle: there is no cell")
     func warmingDoesNotSettle() async throws {
         try await withTemporaryDirectory { directory in
-            // El asentamiento existe para no gastar una petición en una celda que se va.
-            // Un precalentamiento no es una celda: con diez segundos de asentamiento, que
-            // termine ya solo puede ser porque no ha esperado.
+            // Settling exists to avoid spending a request on a cell that's scrolling away.
+            // A warm-up isn't a cell: with a 10-second settle delay, finishing right away
+            // can only mean it never waited.
             let loader = CountingImageLoader(returning: try ImageFixtures.png(side: 600))
             let sut = ImageCache(directory: directory, settleDelay: .seconds(10), loader: loader.load)
 
@@ -65,8 +65,8 @@ struct ImageCacheWarmUpTests {
     @Test("Cancelling a warm-up stops it at the image in flight and asks for no more")
     func cancellingAWarmUpStopsIt() async throws {
         try await withTemporaryDirectory { directory in
-            // Cuando llega la página siguiente, la vista cancela el calentamiento de la
-            // anterior: lo que estaba en vuelo se cancela y lo que quedaba no se pide.
+            // When the next page arrives, the view cancels the previous page's warm-up:
+            // what was in flight gets cancelled and what remained is never requested.
             let gate = AsyncGate()
             let loader = CountingImageLoader(
                 returning: try ImageFixtures.png(side: 600),
@@ -78,8 +78,8 @@ struct ImageCacheWarmUpTests {
             let warming = Task { await sut.warm(urls) }
             await gate.waitUntilReached()
             warming.cancel()
-            // La descarga sigue parada en el pestillo hasta que se abra: primero se
-            // comprueba que la baja ha llegado, luego se abre y se deja terminar
+            // The download stays blocked at the gate until it opens: first confirm the
+            // cancellation has landed, then open the gate and let it finish
             await waitUntilNothingIsInFlight(in: sut)
             await gate.open()
             await warming.value
@@ -112,7 +112,7 @@ struct ImageCacheWarmUpTests {
         }
     }
 
-    // MARK: - Pausa
+    // MARK: - Pause
 
     @Test("With the network paused a download waits; resuming lets it through")
     func pausingHoldsTheNetwork() async throws {

@@ -1,17 +1,16 @@
 import Foundation
 import Synchronization
 
-// Intercepta las peticiones dentro de una URLSession de verdad, para poder probar
-// URLSessionHTTPClient contra la fontanería real de la sesión (códigos de estado,
-// errores de transporte, objetos de respuesta) sin que salga un solo paquete.
-// El estado compartido va con Mutex y no con nonisolated(unsafe), y las suites que
-// lo usan están marcadas .serialized porque registrar un URLProtocol afecta a todo
-// el proceso.
+/// Intercepts requests inside a real `URLSession`, to test `URLSessionHTTPClient`
+/// against the session's actual plumbing (status codes, transport errors, response
+/// objects) without a single packet going out. Shared state uses `Mutex`, not
+/// `nonisolated(unsafe)`, and the suites that use this are marked `.serialized` because
+/// registering a `URLProtocol` affects the whole process.
 final class StubURLProtocol: URLProtocol {
     struct Stub: Sendable {
         var statusCode: Int = 200
         var body = Data()
-        // Si está puesto, la petición falla en transporte en vez de contestar
+        // If set, the request fails in transport instead of answering.
         var error: URLError?
         var headers: [String: String] = ["Content-Type": "application/json"]
 
@@ -32,7 +31,7 @@ final class StubURLProtocol: URLProtocol {
 
     static var lastRequest: URLRequest? { requests.withLock { $0.last } }
 
-    // Sesión efímera y sin caché, para que un test no lea la respuesta de otro
+    // Ephemeral, cache-free session, so one test can't read another's response.
     static func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]

@@ -10,7 +10,7 @@ struct DownloadQueueTests {
         let probe = ConcurrencyProbe()
         let sut = DownloadQueue(limit: 2)
 
-        // Seis peticiones a la vez, que es lo que produce una pantalla de grid
+        // Six requests at once, matching what a grid screen produces
         await withTaskGroup(of: Void.self) { group in
             for _ in 0..<6 {
                 group.addTask {
@@ -23,9 +23,9 @@ struct DownloadQueueTests {
                 }
             }
 
-            // Antes de abrir: las dos que caben están dentro y las otras cuatro esperan
-            // hueco. Es la prueba de que nadie más ha pasado, y lo que hace que el pico
-            // que se mide después sea el de verdad y no el de quien llegó primero.
+            // Before opening: the two that fit are in, the other four are waiting for a
+            // slot. This proves nobody else got through, so the peak measured next is
+            // the real one, not just whoever arrived first.
             for _ in 0..<10_000 {
                 if await probe.current == 2 { break }
                 await Task.yield()
@@ -39,10 +39,10 @@ struct DownloadQueueTests {
 
     @Test("When a slot frees up, the last request queued goes first")
     func servesTheLastRequestFirst() async throws {
-        // Es el corazón del asunto: al bajar rápido, la última imagen pedida es la que
-        // el usuario tiene delante y la primera es una que dejó atrás hace diez
-        // pantallas. En orden de llegada el usuario vería pintarse todas las que ya no
-        // mira antes de que le llegue la suya.
+        // The heart of it: when scrolling fast, the last image requested is the one in
+        // front of the user, while the first is one left behind ten screens ago. In
+        // arrival order, the user would see every image they've stopped looking at
+        // render before their own.
         let gate = AsyncGate()
         let order = OrderRecorder()
         let sut = DownloadQueue(limit: 1)
@@ -50,8 +50,8 @@ struct DownloadQueueTests {
         async let running: Void = enqueue(0, on: sut, recordingInto: order, blockingOn: gate)
         await gate.waitUntilReached()
 
-        // Se encolan de una en una para que el orden de llegada sea el que dice el
-        // test y no el que decida el planificador
+        // Enqueued one at a time so arrival order matches the test, not whatever the
+        // scheduler decides
         async let first: Void = enqueue(1, on: sut, recordingInto: order)
         try await waitUntilWaiting(1, in: sut)
         async let second: Void = enqueue(2, on: sut, recordingInto: order)
@@ -67,9 +67,9 @@ struct DownloadQueueTests {
 
     @Test("A request cancelled while queued lets go of its place instead of parking forever")
     func releasesTheQueueWhenCancelled() async throws {
-        // Con LIFO, a una espera cancelada no la despierta el turno: siempre hay
-        // alguien más nuevo por delante. Si no se la saca de la cola a mano, esa tarea
-        // se queda aparcada para siempre.
+        // With LIFO, a cancelled wait is never woken by its turn — there's always
+        // someone newer ahead of it. Without removing it from the queue by hand, that
+        // task would stay parked forever.
         let gate = AsyncGate()
         let sut = DownloadQueue(limit: 1)
 
@@ -89,8 +89,8 @@ struct DownloadQueueTests {
 
     @Test("A download that fails hands its slot back")
     func aFailingDownloadReleasesItsSlot() async throws {
-        // Un 503 en una imagen no puede dejar un hueco ocupado para siempre: con cuatro
-        // huecos, cuatro fallos seguidos dejarían la rejilla entera sin descargas
+        // A 503 on one image can't leave its slot occupied forever: with four slots,
+        // four failures in a row would starve the whole grid of downloads
         let order = OrderRecorder()
         let sut = DownloadQueue(limit: 1)
 
@@ -98,8 +98,8 @@ struct DownloadQueueTests {
             try await sut.enqueue { () async throws(AppError) -> Data in throw .server(statusCode: 503) }
         }
 
-        // En una tarea aparte y con un plazo: si el hueco se hubiera quedado ocupado,
-        // esperar aquí sería colgar el test en vez de suspenderlo
+        // In a separate task with a deadline: if the slot had stayed stuck, waiting
+        // here would hang the test instead of just suspending it
         let next = Task { await enqueue(1, on: sut, recordingInto: order) }
         for _ in 0..<10_000 {
             if await !order.ids.isEmpty { break }
@@ -135,13 +135,13 @@ struct DownloadQueueTests {
         await running
     }
 
-    // MARK: - Prioridad
+    // MARK: - Priority
 
     @Test("A prefetch only gets a slot when nothing visible is waiting")
     func prefetchGoesAfterEverythingVisible() async throws {
-        // El precalentamiento de la página siguiente no puede quitarle el hueco a una
-        // celda que se está mirando, aunque haya llegado antes: se encola el prefetch
-        // primero y aun así las visibles pasan por delante, y entre ellas sigue el LIFO.
+        // Warming the next page can't steal a slot from a cell that's on screen, even
+        // if it queued first: the prefetch enqueues first, yet the visible requests
+        // still go ahead of it, and LIFO still applies among them.
         let gate = AsyncGate()
         let order = OrderRecorder()
         let sut = DownloadQueue(limit: 1)
@@ -162,12 +162,12 @@ struct DownloadQueueTests {
         #expect(await order.ids == [0, 3, 2, 1])
     }
 
-    // MARK: - Pausa
+    // MARK: - Pause
 
     @Test("While paused no slot is handed out, and resuming hands them out again")
     func pauseHoldsSlotsUntilResumed() async throws {
-        // Es lo que retiene la red durante un fling: la cola sigue aceptando peticiones,
-        // pero no las suelta hasta que el scroll para
+        // What holds the network back during a fling: the queue keeps accepting
+        // requests, but doesn't release them until the scroll stops
         let sut = DownloadQueue(limit: 2)
         let order = OrderRecorder()
 
@@ -185,8 +185,8 @@ struct DownloadQueueTests {
 
     @Test("A slot freed while paused is not handed over to the next in line")
     func pauseDoesNotHandOverFreedSlots() async throws {
-        // Sin esto, pausar solo frenaría las peticiones nuevas: las que ya esperaban
-        // irían saliendo una a una según se liberase cada hueco
+        // Without this, pausing would only hold back new requests: the ones already
+        // waiting would keep trickling out as each slot freed up
         let gate = AsyncGate()
         let order = OrderRecorder()
         let sut = DownloadQueue(limit: 1)
@@ -200,7 +200,7 @@ struct DownloadQueueTests {
         await gate.open()
         await running
 
-        // El hueco se ha liberado y el que esperaba sigue esperando
+        // The slot freed up, and the one waiting is still waiting
         #expect(await order.ids == [0])
         #expect(await sut.waitingCount == 1)
 
@@ -211,9 +211,9 @@ struct DownloadQueueTests {
 
     @Test("A pause that nobody lifts expires on its own")
     func pauseExpiresOnItsOwn() async throws {
-        // Si la vista se va en mitad de un fling y no llega a reanudar, la cola no puede
-        // quedarse muerta con las imágenes de toda la app dentro. Se espera de verdad,
-        // pero solo a que caduque: dormir de más no puede romperlo.
+        // If the view disappears mid-fling and never resumes, the queue can't stay dead
+        // with every image in the app stuck inside it. This actually waits, but only
+        // for the timeout to expire — oversleeping can't break it.
         let sut = DownloadQueue(limit: 1, pauseTimeout: .milliseconds(50))
         let order = OrderRecorder()
 
@@ -226,14 +226,14 @@ struct DownloadQueueTests {
 
     @Test("A stale timer from an earlier pause does not lift a newer one")
     func anEarlierPauseTimerDoesNotLiftALaterPause() async throws {
-        // Pausar, reanudar y volver a pausar deja vivo el temporizador de la primera. Sin
-        // la generación, ese temporizador levantaría la segunda pausa antes de tiempo y
-        // un fling encadenado volvería a soltar peticiones a mitad de gesto.
+        // Pause, resume, pause again leaves the first pause's timer alive. Without the
+        // generation counter, that timer would lift the second pause early, and a
+        // chained fling would release requests mid-gesture again.
         //
-        // Se mira el reloj de verdad, con márgenes: la primera pausa caduca al segundo, la
-        // segunda a segundo y medio, y se comprueba a los 1,25. Una máquina lenta alarga
-        // los sueños, y el único riesgo es que la comprobación se retrase un cuarto de
-        // segundo, que es mucho más de lo que tarda en despertar una tarea.
+        // This uses the real clock, with margin: the first pause expires at 1s, the
+        // second at 1.5s, checked at 1.25s. A slow machine stretches the sleeps, and the
+        // only risk is the check itself running a quarter-second late — far more slack
+        // than a task needs to wake up.
         let sut = DownloadQueue(limit: 1, pauseTimeout: .seconds(1))
         let order = OrderRecorder()
 
@@ -244,12 +244,12 @@ struct DownloadQueueTests {
         async let held: Void = enqueue(1, on: sut, recordingInto: order)
         try await waitUntilWaiting(1, in: sut)
 
-        // Ya ha pasado el plazo de la primera pausa, y la segunda sigue puesta
+        // The first pause's timeout has already passed, and the second pause is still on
         try await Task.sleep(for: .milliseconds(750))
         #expect(await sut.isPaused, "The first pause's timer lifted the second pause")
         #expect(await order.ids.isEmpty)
 
-        // Y la segunda caduca cuando le toca a ella
+        // And the second pause expires when its own turn comes
         await held
         #expect(await order.ids == [1])
     }
@@ -270,8 +270,8 @@ struct DownloadQueueTests {
         }
     }
 
-    // Se cede el turno en vez de dormir: no depende del reloj, así que no falla en una
-    // máquina lenta
+    // Yields instead of sleeping: doesn't depend on the clock, so it won't fail on a
+    // slow machine
     private func waitUntilWaiting(_ count: Int, in queue: DownloadQueue) async throws {
         for _ in 0..<10_000 {
             if await queue.waitingCount == count { return }

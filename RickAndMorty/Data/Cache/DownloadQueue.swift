@@ -19,9 +19,9 @@ import Foundation
 actor DownloadQueue {
     typealias Work = () async throws(AppError) -> Data
 
-    // Who's asking for the slot. A cell on screen jumps the line; a prefetch — images
-    // for the page that just arrived but isn't visible yet — only goes in when nothing
-    // visible is waiting.
+    /// Who's asking for the slot. A cell on screen jumps the line; a prefetch — images
+    /// for the page that just arrived but isn't visible yet — only goes in when nothing
+    /// visible is waiting.
     enum Priority: Sendable {
         case visible
         case prefetch

@@ -1,11 +1,10 @@
 import XCTest
 
-// Comprueba que la app arranca y deja una captura de la primera pantalla en el informe.
-// Con runsForEachTargetApplicationUIConfiguration se ejecuta una vez por configuración de
-// interfaz: sin plan de pruebas, las cuatro que Xcode trae por defecto —claro y oscuro,
-// vertical y horizontal—, así que el informe enseña el listado en las cuatro sin que
-// nadie tenga que abrir el simulador. Un plan de pruebas con idiomas o tamaños de letra
-// añadiría capturas aquí mismo sin tocar el test.
+/// Verifies the app launches and attaches a screenshot of the first screen to the report.
+/// `runsForEachTargetApplicationUIConfiguration` runs it once per UI configuration —
+/// without a test plan, Xcode's four defaults (light/dark, portrait/landscape) — so the
+/// report shows the list under all four without opening the simulator. A test plan with
+/// locales or text sizes would add screenshots here without touching the test.
 final class RickAndMortyUITestsLaunchTests: XCTestCase {
     override static var runsForEachTargetApplicationUIConfiguration: Bool {
         true
@@ -18,8 +17,8 @@ final class RickAndMortyUITestsLaunchTests: XCTestCase {
     @MainActor
     func testLaunch() throws {
         let app = XCUIApplication()
-        // Con datos fijos, igual que el resto de la suite: si no, la captura depende de
-        // que la API conteste y de qué conteste
+        // Stubbed data, like the rest of the suite — otherwise the screenshot depends on
+        // whether the API responds, and with what.
         app.launchArguments = [LaunchFlags.stubbedData]
         app.launch()
 

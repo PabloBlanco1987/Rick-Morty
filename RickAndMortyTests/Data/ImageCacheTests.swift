@@ -4,16 +4,16 @@ import Testing
 @testable import RickAndMorty
 
 extension RetryPolicy {
-    // Reintenta sin esperar: en un test lo que importa es que lo vuelva a intentar, no
-    // cuánto duerme, y así la suite se queda en milisegundos
+    // Retries without delay: what a test cares about is that it retries, not how long
+    // it sleeps — keeps the suite in milliseconds
     static let immediate = RetryPolicy(maxAttempts: 3, baseDelay: .zero, rateLimitedDelay: .zero)
 }
 
 @Suite("Image cache")
 struct ImageCacheTests {
     private let url = URL(filePath: "/avatars/1.jpeg")
-    // Una celda de 100 pt en una pantalla 2x son 200 px: el fixture tiene 600, así que
-    // si la reducción no ocurre se nota en el ancho de la imagen que sale
+    // A 100pt cell at 2x scale is 200px: the fixture is 600px, so if downsampling
+    // doesn't happen it shows up in the resulting image's width
     private let cellSize = CGSize(width: 100, height: 100)
     private let scale: CGFloat = 2
 
@@ -48,8 +48,8 @@ struct ImageCacheTests {
     @Test("A cache that starts with an empty memory finds the bytes on disk")
     func servesFromDiskWithAColdMemory() async throws {
         try await withTemporaryDirectory { directory in
-            // Dos instancias sobre el mismo directorio: es lo que pasa entre dos
-            // arranques de la app, con la memoria vacía y el disco puesto.
+            // Two instances over the same directory: this is what happens across two
+            // app launches, with memory empty and disk already populated.
             let loader = CountingImageLoader(returning: try ImageFixtures.png(side: 600))
             let first = ImageCache(directory: directory, settleDelay: .zero, loader: loader.load)
             _ = try await first.image(for: url, size: cellSize, scale: scale)
@@ -65,10 +65,10 @@ struct ImageCacheTests {
     @Test("Two concurrent requests for the same URL only trigger one download")
     func deduplicatesConcurrentRequests() async throws {
         try await withTemporaryDirectory { directory in
-            // El pestillo congela la primera descarga dentro del cargador, así que la
-            // segunda petición llega con la primera todavía en vuelo. Sin él habría
-            // que dormir y confiar, que es como se escriben los tests que fallan una
-            // vez de cada treinta.
+            // The gate freezes the first download inside the loader, so the second
+            // request arrives while the first is still in flight. Without it we'd have
+            // to sleep and hope, which is how you write tests that fail one time in
+            // thirty.
             let gate = AsyncGate()
             let loader = CountingImageLoader(
                 returning: try ImageFixtures.png(side: 600),
@@ -91,10 +91,10 @@ struct ImageCacheTests {
     @Test("A download nobody is waiting for any more is cancelled, not left in the queue")
     func cancelsDownloadsNobodyIsWaitingFor() async throws {
         try await withTemporaryDirectory { directory in
-            // Es la diferencia entre un scroll rápido que se rellena y uno que deja el
-            // grid en gris: URLSession abre seis conexiones por host, así que una
-            // petición que ya no le importa a nadie no es gratis, le está quitando el
-            // turno a una celda que sí se ve.
+            // This is the difference between a fast scroll that fills back in and one
+            // that leaves the grid gray: URLSession opens six connections per host, so a
+            // request nobody cares about any more isn't free — it's taking a slot from a
+            // cell that's actually visible.
             let gate = AsyncGate()
             let loader = CountingImageLoader(
                 returning: try ImageFixtures.png(side: 600),
@@ -117,10 +117,9 @@ struct ImageCacheTests {
     @Test("A cell the user scrolled straight past never costs a request")
     func doesNotSpendARequestOnACellThatWentBy() async throws {
         try await withTemporaryDirectory { directory in
-            // En un vistazo rápido las celdas asoman y se van en decenas de
-            // milisegundos. Pedir esas imágenes no solo es tirar ancho de banda: es la
-            // ráfaga que hace que la API conteste 429 y se lleve por delante también la
-            // carga de la página siguiente.
+            // In a quick glance, cells appear and disappear within tens of milliseconds.
+            // Requesting those images isn't just wasted bandwidth: it's the burst that
+            // gets the API to answer 429 and take down the next page's loading with it.
             let loader = CountingImageLoader(returning: try ImageFixtures.png(side: 600))
             let sut = ImageCache(
                 directory: directory,
@@ -129,7 +128,7 @@ struct ImageCacheTests {
             )
 
             let request = Task { try await sut.image(for: url, size: cellSize, scale: scale) }
-            // La celda se va antes de que le dé tiempo a asentarse
+            // The cell leaves before it has time to settle
             request.cancel()
             _ = try? await request.value
 
@@ -140,10 +139,10 @@ struct ImageCacheTests {
     @Test("A cell that stays on screen gets its image once it has settled")
     func aCellThatStaysIsRequestedAfterSettling() async throws {
         try await withTemporaryDirectory { directory in
-            // La otra cara de la anterior: la espera existe para no gastar peticiones en
-            // celdas que se van, no para retrasar a las que se quedan. Se mide que la
-            // espera exista y que después la petición salga; una máquina lenta solo puede
-            // alargarla.
+            // The flip side of the previous test: the delay exists to avoid wasting
+            // requests on cells that leave, not to slow down the ones that stay. This
+            // checks that the delay happens and the request follows; a slow machine can
+            // only stretch it.
             let loader = CountingImageLoader(returning: try ImageFixtures.png(side: 600))
             let sut = ImageCache(directory: directory, settleDelay: .milliseconds(50), loader: loader.load)
 
@@ -159,8 +158,8 @@ struct ImageCacheTests {
     @Test("The same URL at two sizes gives two bitmaps out of a single download")
     func reusesTheBytesAcrossSizes() async throws {
         try await withTemporaryDirectory { directory in
-            // Los bytes se guardan sin reducir precisamente para esto: otro tamaño
-            // cuesta una decodificación, no otra descarga.
+            // The bytes are kept undownsampled for exactly this: a different size costs
+            // a decode, not another download.
             let loader = CountingImageLoader(returning: try ImageFixtures.png(side: 600))
             let sut = ImageCache(directory: directory, settleDelay: .zero, loader: loader.load)
 
@@ -188,13 +187,13 @@ struct ImageCacheTests {
     @Test("A download that fails with something worth retrying is retried")
     func retriesWhatIsWorthRetrying() async throws {
         try await withTemporaryDirectory { directory in
-            // Sin el reintento, un 503 pasajero deja esa celda en gris hasta que el
-            // usuario la saque de la pantalla y la vuelva a meter: es lo único que
-            // hace que su .task se dispare otra vez.
-            // Con el fallo por defecto del cargador, un 503: el tropiezo pasajero de libro
+            // Without the retry, a transient 503 leaves that cell gray until the user
+            // scrolls it off screen and back on — that's the only thing that re-fires
+            // its .task.
+            // The loader's default failure is a 503: the textbook transient hiccup
             let loader = CountingImageLoader(returning: try ImageFixtures.png(side: 600), failingFirst: 1)
-            // Sin espera entre intentos: lo que se prueba es que reintente, no cuánto
-            // duerme, y la suite se queda en milisegundos
+            // No delay between attempts: what's under test is that it retries, not how
+            // long it sleeps, so the suite stays in milliseconds
             let sut = ImageCache(
                 directory: directory,
                 settleDelay: .zero,
@@ -243,10 +242,10 @@ struct ImageCacheTests {
     @Test("Being rate limited is not retried here: the shared limiter owns that")
     func doesNotRetryRateLimiting() async throws {
         try await withTemporaryDirectory { directory in
-            // El 429 es retryable para el cliente HTTP, pero reintentarlo por imagen sería
-            // que cada una de las cuatro descargas en vuelo repitiera por su cuenta la
-            // ráfaga que nos ganó el límite. De él se encarga el freno compartido de
-            // RateLimiter, una vez para todas.
+            // A 429 is retryable for the HTTP client, but retrying it per image would
+            // mean each of four in-flight downloads repeating on its own the burst that
+            // got us rate-limited in the first place. RateLimiter's shared throttle
+            // handles that once, for everyone.
             let loader = CountingImageLoader(
                 returning: try ImageFixtures.png(side: 600),
                 failingFirst: 5,
@@ -268,10 +267,10 @@ struct ImageCacheTests {
     @Test("Bytes that do not decode are not kept: the next attempt goes back to the network")
     func doesNotKeepBytesThatDoNotDecode() async throws {
         try await withTemporaryDirectory { directory in
-            // Es lo que hace un portal cautivo: el wifi de un hotel contesta 200 con su
-            // página de acceso. La descarga guarda los bytes antes de saber si decodifican,
-            // y si se quedaran en disco, cada visita siguiente los leería de ahí, fallaría
-            // igual y no volvería a bajar la imagen nunca.
+            // What a captive portal does: a hotel's wifi answers 200 with its login page.
+            // The download saves the bytes before knowing whether they decode, and if
+            // they stayed on disk, every later visit would read them from there, fail
+            // the same way, and never download the real image again.
             let loader = CountingImageLoader(returningInOrder: [
                 Data("<html>hotel wifi login</html>".utf8),
                 try ImageFixtures.png(side: 600),
@@ -283,7 +282,7 @@ struct ImageCacheTests {
             }
             let loaded = try await sut.image(for: url, size: cellSize, scale: scale)
 
-            // De la red y no del disco: los bytes rotos se han borrado
+            // From the network, not disk: the broken bytes were deleted
             #expect(loaded.origin == .network)
             #expect(loaded.image.width == 200)
             #expect(await loader.callCount == 2)
@@ -293,10 +292,10 @@ struct ImageCacheTests {
     @Test("Cancelling one of two cells sharing a download leaves the other's download running")
     func cancellingOneWaiterKeepsTheDownloadForTheOther() async throws {
         try await withTemporaryDirectory { directory in
-            // Es la razón de llevar la cuenta de interesados y no una bandera: la
-            // descarga se cancela solo cuando se va el último. Si se cancelara con el
-            // primero, una celda que sale de pantalla dejaría sin imagen a la vecina que
-            // sigue mirándola.
+            // This is why it tracks a count of interested waiters instead of a flag: the
+            // download only cancels when the last one leaves. If it cancelled with the
+            // first, a cell scrolling off screen would leave its neighbor — still
+            // watching it — without an image.
             let gate = AsyncGate()
             let loader = CountingImageLoader(
                 returning: try ImageFixtures.png(side: 600),

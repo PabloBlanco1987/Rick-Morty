@@ -10,8 +10,8 @@ struct DefaultCharacterRepositoryTests {
 
     @Test("A listing is mapped into domain characters carrying the requested page")
     func mapsListing() async throws {
-        // La API no dice qué página es, así que el número tiene que ser el que se pidió:
-        // se pide la 3 para que un literal no pase por bueno
+        // The API doesn't say which page it is, so the number has to be the one
+        // requested: page 3 is used so a hardcoded literal can't pass by accident
         let page = try await makeSUT(.json(JSONFixtures.charactersPage))
             .characters(page: 3, filter: .empty, freshness: .acceptCached)
 
@@ -23,11 +23,10 @@ struct DefaultCharacterRepositoryTests {
 
     @Test("A search that matches nothing is an empty result that remembers its page, not an error")
     func notFoundOnListingBecomesEmptyPage() async throws {
-        // La API contesta a ?name=zzzz con un 404, no con un results vacío. Dejarlo
-        // pasar como fallo sería enseñar una pantalla de error por una búsqueda
-        // normal sin resultados, así que se traduce aquí. Y la página vacía se queda con
-        // el número que se pidió: la 7, para que el valor por defecto de Page.empty() no
-        // pase por bueno.
+        // The API answers ?name=zzzz with a 404, not an empty results. Letting that
+        // pass as a failure would show an error screen for a normal search with no
+        // matches, so it's translated here. The empty page keeps the requested number
+        // — 7 — so Page.empty()'s default can't pass by accident.
         let page = try await makeSUT(.failure(.notFound))
             .characters(page: 7, filter: CharacterFilter(name: "zzzz"), freshness: .acceptCached)
 
@@ -47,8 +46,8 @@ struct DefaultCharacterRepositoryTests {
 
     @Test("A missing character stays a genuine notFound on the detail path")
     func notFoundOnDetailStaysAnError() async {
-        // Mismo código, significado contrario: nadie ha buscado el personaje 9999,
-        // se ha navegado a él, así que aquí "no hay nada" sí es un error de verdad
+        // Same code, opposite meaning: nobody searched for character 9999, they
+        // navigated to it, so here "nothing found" is a genuine error
         let sut = makeSUT(.failure(.notFound))
 
         await #expect(throws: AppError.notFound) {
@@ -75,8 +74,9 @@ struct DefaultCharacterRepositoryTests {
 
     @Test("The freshness the caller asks for reaches the request")
     func forwardsTheFreshness() async throws {
-        // El repositorio está entre el dominio, que dice "fresco", y el data source, que
-        // lo traduce a HTTP. Si no lo pasara, el refresco quedaría en un gesto sin efecto.
+        // The repository sits between the domain, which says "fresh", and the data
+        // source, which translates that to HTTP. Fail to forward it and refresh becomes
+        // a gesture with no effect.
         let stub = StubHTTPClient(json: JSONFixtures.charactersPage)
         let sut = DefaultCharacterRepository(remote: CharacterRemoteDataSource(client: stub))
 

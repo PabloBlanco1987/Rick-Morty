@@ -20,8 +20,8 @@ import ImageIO
 /// downloads dictionary — is touched by as many tasks as there are cells on screen,
 /// and isolation handles that without a single hand-rolled lock.
 actor ImageCache {
-    // Where the image came from. Returned because the view needs it to decide whether
-    // to fade in: what was already in memory has to appear instantly.
+    /// Where the image came from. Returned because the view needs it to decide whether
+    /// to fade in: what was already in memory has to appear instantly.
     enum Origin: Sendable {
         case memory
         case disk

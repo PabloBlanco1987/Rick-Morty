@@ -1,8 +1,8 @@
 import Foundation
 @testable import RickAndMorty
 
-// CharacterRepository con resultados preparados, para probar los casos de uso sin
-// nada que se parezca a una red
+/// A `CharacterRepository` with canned results, to test the use cases without
+/// anything resembling a network.
 actor StubCharacterRepository: CharacterRepository {
     private var charactersByPage: [Int: Result<Page<Character>, AppError>]
     private let charactersFallback: Result<Page<Character>, AppError>
@@ -11,19 +11,18 @@ actor StubCharacterRepository: CharacterRepository {
 
     private(set) var requestedEpisodeIDs: [[Int]] = []
     private(set) var requestedPages: [Int] = []
-    // Con qué criterios se ha pedido cada listado: es lo que distingue una búsqueda que
-    // llega al servidor de una que se queda filtrando en el móvil lo poco que ya tenía
+    // The criteria each listing was requested with — distinguishes a search that hits
+    // the server from one that just filters what's already on the phone.
     private(set) var requestedFilters: [CharacterFilter] = []
-    // Y con cuánta frescura: es lo que distingue un pull to refresh, que tiene que
-    // revalidar, de las demás cargas, que se conforman con lo guardado
+    // And with how much freshness — distinguishes a pull-to-refresh, which must
+    // revalidate, from other loads, which settle for what's cached.
     private(set) var requestedFreshness: [Freshness] = []
     private(set) var requestedCharacterIDs: [Int] = []
 
-    // Si está puesto, cada listado se para aquí antes de contestar. Es lo que deja tener
-    // una petición congelada en vuelo mientras el test cambia el criterio, refresca o
-    // pide otra página, y comprobar después qué se hace con una respuesta que llega
-    // tarde. Solo se apunta el listado: el detalle y los episodios no tienen carreras
-    // que probar.
+    // If set, each listing pauses here before answering. Lets a request stay frozen
+    // in flight while the test changes the filter, refreshes, or requests another
+    // page, then checks what happens with a response that arrives late. Only the
+    // listing gates: detail and episodes have no races to test.
     private var gate: AsyncGate?
 
     var episodesCallCount: Int { requestedEpisodeIDs.count }
@@ -40,10 +39,10 @@ actor StubCharacterRepository: CharacterRepository {
         self.episodesResult = episodes
     }
 
-    // Una respuesta distinta por página, que es lo que hace falta para probar la
-    // paginación: acumular la dos sobre la uno, o que la siete falle sin que se caigan
-    // las seis anteriores. Lo que no esté en el diccionario sale como página vacía. Solo
-    // el listado: quien pagina no pide detalles ni episodios.
+    // A distinct response per page, needed to test pagination: accumulating page 2
+    // onto page 1, or page 7 failing without pages 1-6 falling with it. Anything
+    // missing from the dictionary comes back as an empty page. Listing only: paging
+    // doesn't request detail or episodes.
     init(charactersByPage: [Int: Result<Page<Character>, AppError>]) {
         self.charactersByPage = charactersByPage
         self.charactersFallback = .success(.empty())
@@ -51,24 +50,23 @@ actor StubCharacterRepository: CharacterRepository {
         self.episodesResult = .success([])
     }
 
-    // Cambia lo que se va a contestar de aquí en adelante, para probar lo que pasa
-    // cuando algo que iba bien empieza a fallar: un refresh que se cae después de
-    // haber cargado la lista, por ejemplo
+    // Changes what gets answered from now on, to test what happens when something
+    // that was working starts failing — a refresh that fails after the list already
+    // loaded, for example.
     func setCharacters(_ result: Result<Page<Character>, AppError>, forPage page: Int) {
         charactersByPage[page] = result
     }
 
-    // Lo mismo para los episodios, que es lo que hace falta para probar que un
-    // reintento se recupera: primero se cae y a la segunda contesta
+    // Same for episodes, needed to test that a retry recovers: fails first,
+    // answers on the second try.
     func setEpisodes(_ result: Result<[Episode], AppError>) {
         episodesResult = result
     }
 
-    // A partir de aquí los listados se quedan parados en el pestillo hasta que el test lo
-    // abra; con nil, los siguientes vuelven a contestar al momento y solo los que ya
-    // están parados esperan. Se apunta la petición antes de pararse, así el test puede
-    // esperar a que haya llegado con `gate.waitUntilReached()` y saber que está
-    // congelada dentro.
+    // From here on, listings block at the gate until the test opens it; with nil,
+    // subsequent calls answer immediately and only the already-blocked ones keep
+    // waiting. The request is recorded before pausing, so the test can wait for it
+    // with `gate.waitUntilReached()` and know it's frozen inside.
     func holdListings(at gate: AsyncGate?) {
         self.gate = gate
     }
@@ -81,9 +79,9 @@ actor StubCharacterRepository: CharacterRepository {
         requestedPages.append(page)
         requestedFilters.append(filter)
         requestedFreshness.append(freshness)
-        // La respuesta se decide al entrar y no al salir del pestillo: así el test puede
-        // cambiar lo que se contesta a partir de ahora sin cambiar lo que ya está en vuelo,
-        // que es lo que hace falta para distinguir una respuesta vieja de una nueva
+        // The response is decided on entering the gate, not on leaving it: lets the
+        // test change future answers without changing what's already in flight —
+        // needed to distinguish a stale response from a fresh one.
         let result = charactersByPage[page] ?? charactersFallback
         await gate?.wait()
         return try result.get()
@@ -101,7 +99,7 @@ actor StubCharacterRepository: CharacterRepository {
 }
 
 extension Character {
-    // Un personaje válido, del que cada test solo sobrescribe lo que le importa
+    // A valid character where each test only overrides what it cares about.
     static func stub(
         id: Int = 1,
         name: String = "Rick Sanchez",
@@ -116,8 +114,8 @@ extension Character {
             gender: .male,
             origin: "Earth (C-137)",
             location: "Citadel of Ricks",
-            // Un avatar por id, como en la API: así un test puede distinguir las
-            // imágenes de una página de las de la siguiente
+            // One avatar per id, like the API: lets a test tell one page's images
+            // apart from the next's.
             imageURL: URL(string: "https://rickandmortyapi.com/api/character/avatar/\(id).jpeg"),
             episodeIDs: episodeIDs
         )
@@ -125,8 +123,8 @@ extension Character {
 }
 
 extension Page where Item == Character {
-    // Una página con personajes de ids correlativos, para no escribir veinte stubs a
-    // mano cada vez que se prueba el scroll
+    // A page of characters with sequential ids, so scrolling tests don't need
+    // twenty hand-written stubs each time.
     static func stub(page: Int, totalPages: Int, ids: ClosedRange<Int>) -> Page<Character> {
         Page(
             items: ids.map { Character.stub(id: $0, name: "Character \($0)") },

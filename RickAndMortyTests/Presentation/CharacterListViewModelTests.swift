@@ -2,12 +2,12 @@ import Foundation
 import Testing
 @testable import RickAndMorty
 
-// @MainActor porque el view model lo es: así los tests llaman a sus métodos desde el
-// mismo aislamiento que la vista, y lo que se prueba es el orden real de las cosas.
+/// `@MainActor` because the view model is: tests call its methods from the same
+/// isolation as the view, so what's tested is the real order of things.
 @MainActor
 @Suite("Character list view model")
 struct CharacterListViewModelTests {
-    // MARK: - Carga inicial
+    // MARK: - Initial load
 
     @Test("Starts idle, with nothing loading and no page error")
     func startsIdle() {
@@ -43,8 +43,8 @@ struct CharacterListViewModelTests {
 
     @Test("Appearing again does not reload what is already on screen")
     func appearingAgainDoesNotReload() async {
-        // .task se vuelve a disparar cada vez que la vista aparece. Si eso recargara,
-        // volver del detalle costaría la lista entera y la posición del scroll.
+        // .task fires again every time the view appears. If that reloaded, coming back
+        // from the detail screen would cost the whole list and the scroll position.
         let (sut, repository) = CharacterListViewModel.forTesting(pages: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
         ])
@@ -55,7 +55,7 @@ struct CharacterListViewModelTests {
         #expect(await repository.requestedPages == [1])
     }
 
-    // MARK: - Paginación
+    // MARK: - Pagination
 
     @Test("The next page is appended to what is already on screen")
     func appendsNextPage() async throws {
@@ -81,8 +81,8 @@ struct CharacterListViewModelTests {
         await sut.onAppear()
         let trigger = try #require(sut.state.value?.last)
 
-        // Las dos llamadas seguidas y sin ningún await entre medias: es exactamente lo
-        // que pasa cuando dos celdas del grid aparecen en el mismo ciclo de layout.
+        // Two calls back to back with no await in between: exactly what happens when
+        // two grid cells appear in the same layout cycle.
         sut.loadNextPageIfNeeded(after: trigger)
         sut.loadNextPageIfNeeded(after: trigger)
         await sut.pagingTask?.value
@@ -93,10 +93,11 @@ struct CharacterListViewModelTests {
 
     @Test("A page asked for right after the previous one has to wait its turn")
     func brakesBetweenPagesAskedForBackToBack() async throws {
-        // Sin el freno, un gesto rápido encadena varias páginas en menos de un segundo:
-        // llega una, sus celdas aparecen con el dedo todavía en marcha y eso pide la
-        // siguiente. Son cien personajes que nadie mira y una ráfaga que se gana el 429
-        // de la API, que además se lleva por delante la carga que sí importaba.
+        // Without the brake, a fast gesture chains several pages in under a second:
+        // one arrives, its cells appear while the finger is still moving, and that
+        // requests the next one. That's a hundred characters nobody looks at, and a
+        // burst that earns a 429 from the API — one that also crowds out the load
+        // that actually mattered.
         let waits = SleepRecorder()
         let repository = StubCharacterRepository(charactersByPage: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
@@ -107,8 +108,8 @@ struct CharacterListViewModelTests {
 
         try await sut.scrollToTheEnd()
 
-        // Se ha esperado, y menos de lo que dura el freno entero: lo que se descuenta
-        // es el tiempo que ya se fue en traer la página anterior
+        // It waited, and less than the full brake duration: what's discounted is the
+        // time already spent fetching the previous page
         let durations = await waits.durations
         #expect(durations.count == 1)
         #expect(durations.allSatisfy { $0 > .zero && $0 <= .milliseconds(400) })
@@ -117,8 +118,8 @@ struct CharacterListViewModelTests {
 
     @Test("A page asked for long after the previous one goes straight through")
     func doesNotBrakeWhenTheUserTakesTheirTime() async throws {
-        // El freno es contra la ráfaga, no contra el usuario: quien baja leyendo no
-        // tiene por qué esperar nada.
+        // The brake is against bursts, not against the user: scrolling down while
+        // reading shouldn't have to wait at all.
         let waits = SleepRecorder()
         let repository = StubCharacterRepository(charactersByPage: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
@@ -162,9 +163,9 @@ struct CharacterListViewModelTests {
 
     @Test("A character that comes back in two pages is only shown once")
     func doesNotShowTheSameCharacterTwice() async throws {
-        // La API pagina sobre una lista estable, pero si dos páginas trajeran el mismo
-        // personaje, ForEach acabaría con dos ids iguales y SwiftUI dejaría de saber qué
-        // celda es cuál. Y lo que se adelanta a la caché son solo las imágenes nuevas.
+        // The API paginates over a stable list, but if two pages brought back the same
+        // character, ForEach would end up with two equal ids and SwiftUI would lose
+        // track of which cell is which. And only the new images get warmed into cache.
         let (sut, _) = CharacterListViewModel.forTesting(pages: [
             1: .success(.stub(page: 1, totalPages: 2, ids: 1...5)),
             2: .success(.stub(page: 2, totalPages: 2, ids: 4...8)),
@@ -177,13 +178,13 @@ struct CharacterListViewModelTests {
         #expect(sut.latestPageImageURLs.map(\.absoluteString) == (6...8).map(avatar))
     }
 
-    // MARK: - Imágenes que adelantar
+    // MARK: - Images to warm
 
     @Test("The images to warm are the ones of the page that just arrived, not everything loaded")
     func publishesTheImagesOfTheLatestPage() async throws {
-        // Lo que ya se ha visto ya está en disco; lo que hay que adelantar es lo que
-        // viene. Publicar la lista entera haría que la vista volviera a recorrer
-        // ochocientas URLs por cada página nueva.
+        // What's already been seen is already on disk; what needs warming is what's
+        // coming. Publishing the whole list would make the view re-scan eight hundred
+        // URLs for every new page.
         let (sut, _) = CharacterListViewModel.forTesting(pages: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .success(.stub(page: 2, totalPages: 3, ids: 6...10)),
@@ -224,7 +225,7 @@ struct CharacterListViewModelTests {
         "https://rickandmortyapi.com/api/character/avatar/\(id).jpeg"
     }
 
-    // MARK: - Fallos
+    // MARK: - Failures
 
     @Test("A first page that fails takes over the screen")
     func firstPageFailureReplacesTheScreen() async {
@@ -240,8 +241,8 @@ struct CharacterListViewModelTests {
 
     @Test("A next page that fails keeps the pages already on screen")
     func nextPageFailureKeepsWhatIsLoaded() async throws {
-        // Es la diferencia entre un fallo de pantalla y un fallo de página: si se cae
-        // la siguiente, las cinco que el usuario está mirando siguen siendo válidas.
+        // This is the difference between a screen failure and a page failure: if the
+        // next page fails, the five the user is looking at are still valid.
         let (sut, _) = CharacterListViewModel.forTesting(pages: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .failure(.offline),
@@ -257,9 +258,8 @@ struct CharacterListViewModelTests {
 
     @Test("A failed next page is not retried on its own while the user keeps scrolling")
     func aFailedNextPageDoesNotRetryItself() async throws {
-        // Las celdas del final siguen apareciendo después del fallo. Sin la guarda,
-        // cada aparición dispararía otra petición contra un servidor que ya ha dicho
-        // que no.
+        // The trailing cells keep appearing after the failure. Without the guard, each
+        // appearance would fire another request at a server that already said no.
         let (sut, repository) = CharacterListViewModel.forTesting(pages: [
             1: .success(.stub(page: 1, totalPages: 3, ids: 1...5)),
             2: .failure(.offline),
@@ -302,9 +302,9 @@ struct CharacterListViewModelTests {
 
     @Test("Coming back to a failed screen does not retry on its own")
     func appearingAgainOnAFailedScreenDoesNotRetry() async {
-        // Reintentar es una decisión del usuario, con su botón. Si volver a la pantalla
-        // repitiera la petición, una hoja que se abre y se cierra sobre el error
-        // martillearía a un servidor que ya ha dicho que no.
+        // Retrying is the user's decision, made with their button. If returning to the
+        // screen repeated the request, a sheet opening and closing over the error would
+        // hammer a server that already said no.
         let (sut, repository) = CharacterListViewModel.forTesting(pages: [
             1: .failure(.timeout),
         ])
@@ -318,9 +318,8 @@ struct CharacterListViewModelTests {
 
     @Test("Being cancelled is not failing: nothing is shown for it")
     func aCancelledLoadIsNotAFailure() async {
-        // Si el usuario se ha ido de la pantalla mientras cargaba, no hay nada que
-        // contarle: la pantalla de error no puede aparecer por una petición que se
-        // canceló a propósito
+        // If the user left the screen while it was loading, there's nothing to report:
+        // the error screen can't appear for a request that was cancelled on purpose
         let (sut, _) = CharacterListViewModel.forTesting(pages: [
             1: .failure(.cancelled),
         ])

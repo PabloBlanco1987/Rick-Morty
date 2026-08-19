@@ -2,10 +2,10 @@ import Foundation
 import Testing
 @testable import RickAndMorty
 
-// El repositorio en memoria con el que arrancan los tests de interfaz. Es código del
-// target de la app —vive dentro de #if DEBUG— y de él dependen esos tests: si paginara o
-// filtrara distinto que el servidor, un test de interfaz se pondría rojo o verde por el
-// motivo equivocado. Aquí se comprueba que se porta como lo que suplanta.
+/// The in-memory repository UI tests launch with. It's app-target code — it lives inside
+/// `#if DEBUG` — and those tests depend on it: if it paged or filtered differently than the
+/// server, a UI test would go red or green for the wrong reason. This verifies it behaves
+/// like what it stands in for.
 @Suite("Stubbed launch repository")
 struct StubbedLaunchTests {
     private let sut = StubbedCharacterRepository()
@@ -26,8 +26,8 @@ struct StubbedLaunchTests {
 
     @Test("Filters combine like the server's: partial match, case-insensitive, all at once")
     func filtersCombineLikeTheServer() async throws {
-        // Los mismos criterios que aplica la API, para que un test de interfaz que
-        // filtre vea lo mismo que vería contra el servidor
+        // Same criteria the API applies, so a UI test that filters sees what it
+        // would see against the server
         let filter = CharacterFilter(name: "smith", status: .alive, gender: .female, species: "HUMAN")
 
         let page = try await sut.characters(page: 1, filter: filter, freshness: .acceptCached)
@@ -46,8 +46,8 @@ struct StubbedLaunchTests {
 
     @Test("Refreshing fails only when asked to, and only for the loads that demand fresh data")
     func refreshFailsOnlyWhenAsked() async throws {
-        // Es la única forma de que un test de interfaz vea el aviso de refresco fallido
-        // sin depender de que no haya red: las cargas normales siguen contestando
+        // The only way for a UI test to see the failed-refresh notice without
+        // relying on no network: normal loads keep answering
         let failing = StubbedCharacterRepository(refreshFails: true)
 
         _ = try await failing.characters(page: 1, filter: .empty, freshness: .acceptCached)
