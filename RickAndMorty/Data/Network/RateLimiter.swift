@@ -1,35 +1,23 @@
 import Foundation
 
-// El ritmo al que la app se permite salir a la red, para todo el host a la vez.
-//
-// La API va detrás de Cloudflare, que limita por IP y antes de su caché: cada página de
-// JSON y cada avatar cuentan contra el mismo cupo, y el 429 lo pone él, no el servidor.
-// Hasta ahora la app limitaba cuántas descargas iban a la vez, pero no cuántas salían por
-// segundo, y cuatro imágenes de 40 KB a 150 ms son veinticinco peticiones por segundo:
-// justo la ráfaga que se gana el castigo. Y el JSON y las imágenes se frenaban cada uno
-// por su lado, así que cuando las imágenes provocaban el 429 la página siguiente también
-// se lo comía sin haber hecho nada.
-//
-// Por eso es una sola pieza compartida, con dos mecanismos:
-//
-// - Un cubo de fichas (token bucket): `rate` fichas por segundo hasta `burst` acumuladas.
-//   Cada petición gasta una; sin fichas se espera. Es lo que convierte "reaccionar al
-//   castigo" en "no ganárselo".
-// - Un freno compartido cuando aun así llega un 429: nadie sale hasta que pase el
-//   `Retry-After` que diga el servidor o, si no lo dice, una espera que se dobla con cada
-//   429 seguido. Y el ritmo se baja a la mitad; con cada racha de aciertos se recupera un
-//   poco. Es control de congestión: no sabemos qué umbral tiene puesto Cloudflare, así que
-//   el ritmo se calibra solo contra lo que el servidor va contestando.
-//
-// Es un actor porque lo tocan a la vez las descargas de imágenes y el cliente HTTP, y el
-// estado que protege —fichas, freno, ritmo— tiene que ser uno solo para que el freno sea
-// de verdad compartido.
+/// The rate at which the app allows itself onto the network, for the whole host at once.
+/// Cloudflare limits by IP ahead of its own cache, so JSON pages and avatars share one
+/// quota — and it's Cloudflare issuing the 429, not the API. Two mechanisms:
+/// - A token bucket: `rate` tokens/second up to `burst`, one spent per request, waits
+///   when empty. Turns "react to the penalty" into "don't earn it."
+/// - A shared brake on a 429: nobody goes out until `Retry-After` passes (or a doubling
+///   backoff if the server doesn't say), the rate is halved, and it recovers gradually
+///   on a streak of successes — congestion control, since Cloudflare's real threshold
+///   isn't documented.
+///
+/// An actor because image downloads and the HTTP client touch it at once, and the state
+/// it guards — tokens, brake, rate — has to be one shared thing for the brake to hold.
 actor RateLimiter {
     static let shared = RateLimiter()
 
-    // Sin ritmo ni freno, para los tests que prueban otra cosa y no deben esperar a
-    // nadie. Es una propiedad calculada a propósito: cada acceso da una instancia nueva,
-    // así que un test que provoque un 429 no deja el freno puesto para el siguiente.
+    // No rate, no brake — for tests that test something else and shouldn't wait on
+    // anyone. A computed property on purpose: each access is a fresh instance, so one
+    // test's 429 doesn't leave the brake set for the next.
     static var disabled: RateLimiter {
         RateLimiter(maxRate: .infinity, burst: .infinity, coolOff: .zero)
     }
@@ -41,25 +29,25 @@ actor RateLimiter {
     private let recoveryStreak: Int
     private let logger = NetworkLogger.shared
 
-    // Lo que dura como mucho un Retry-After. Un valor disparatado del servidor no puede
-    // dejar la app muda medio minuto sin más razón que un encabezado.
+    // The most a Retry-After is allowed to last. A wild server value shouldn't be able
+    // to mute the app for half a minute on a header's say-so.
     private static let maxRetryAfter: Duration = .seconds(30)
 
     private var rate: Double
     private var tokens: Double
     private var lastRefill: ContinuousClock.Instant
 
-    // Hasta cuándo hay que dejar de pedir, y cuántos 429 seguidos llevamos
+    // Until when to stop requesting, and how many 429s in a row
     private var coolOffUntil: ContinuousClock.Instant?
     private var consecutiveRateLimits = 0
     private var successStreak = 0
 
-    // Cuándo se puso el último freno. Es lo que separa "otro 429" de "el mismo 429": lo
-    // que ya estaba en vuelo cuando se puso el freno pertenece a la ráfaga que lo
-    // provocó, y no puede contar como una racha nueva
+    // When the brake was last set. Separates "another 429" from "the same 429": anything
+    // already in flight when the brake went on belongs to the burst that caused it, and
+    // can't count as a new streak.
     private var holdStartedAt: ContinuousClock.Instant?
 
-    // internal para que los tests puedan comprobar el freno y el ritmo sin mirar el reloj
+    // internal so tests can check the brake and rate without watching the clock
     var isCoolingOff: Bool { remainingCoolOff != nil }
     var currentRate: Double { rate }
 
@@ -69,10 +57,10 @@ actor RateLimiter {
         return remaining > .zero ? remaining : nil
     }
 
-    // Los valores por defecto son un punto de partida, no una medida: el umbral de
-    // Cloudflare no está documentado, así que se empieza prudente y el ritmo se ajusta
-    // solo. Ocho por segundo llenan la pantalla donde aterriza un fling en menos de un
-    // segundo y calientan una página de veinte en dos y medio; leyendo, sobra.
+    // Defaults are a starting point, not a measurement — Cloudflare's threshold isn't
+    // documented, so this starts cautious and the rate self-adjusts. Eight per second
+    // fills a fling's landing screen in under a second and warms a page of twenty in
+    // 2.5s; at reading speed, it's plenty.
     init(
         maxRate: Double = 8,
         burst: Double = 8,
@@ -90,14 +78,14 @@ actor RateLimiter {
         self.lastRefill = .now
     }
 
-    // Espera a que se pueda salir a la red y gasta una ficha. Se llama justo antes de
-    // cada petición de verdad, en los dos únicos sitios donde se hacen: el cliente HTTP y
-    // la descarga de imágenes.
+    // Waits until the network is fair game and spends a token. Called right before
+    // every real request, at the two places they're made: the HTTP client and image
+    // downloads.
     //
-    // Es un bucle y no una cola de espera a propósito: como mucho esperan aquí cinco
-    // tareas a la vez —los cuatro huecos de la cola de imágenes y la página en vuelo—, y
-    // con tan pocas, dormir lo que falte y volver a mirar es más simple y da igual de
-    // justo. El orden lo pone la cola de descargas, que es LIFO; aquí solo se raciona.
+    // A loop, not a wait queue, on purpose: at most five tasks wait here at once — the
+    // download queue's four slots plus the page in flight — and with so few, sleeping
+    // the shortfall and checking again is simpler and just as fair. Ordering comes from
+    // the LIFO download queue; this only rations.
     func acquire() async throws(AppError) {
         while true {
             if let remaining = remainingCoolOff {
@@ -105,8 +93,8 @@ actor RateLimiter {
                 continue
             }
 
-            // Sin ritmo (tests) no hay fichas que contar. Y hay que salir antes de tocar
-            // los números: infinito por cero es NaN.
+            // No rate (tests) means no tokens to count — and this has to return before
+            // touching the math, since infinity times zero is NaN.
             guard rate.isFinite else { return }
 
             refill()
@@ -118,29 +106,29 @@ actor RateLimiter {
         }
     }
 
-    // El servidor ha dicho que vamos demasiado rápido. Se para todo el mundo y se baja el
-    // ritmo: reintentar al mismo paso sería alargar el castigo.
+    // The server said we're going too fast. Everyone stops and the rate drops —
+    // retrying at the same pace would just extend the penalty.
     //
-    // issuedAt es cuándo salió la petición que ha recibido el 429 —quien llama lo toma
-    // justo después de acquire()— y es lo que evita contar una ráfaga como una racha.
-    // Cuando Cloudflare corta, los cuatro huecos de imágenes y la página en vuelo
-    // contestan 429 casi a la vez; contados uno a uno, un solo aviso del servidor dejaba
-    // el freno en dieciséis segundos y el ritmo en el suelo, y hacían falta ciento
-    // ochenta aciertos para recuperarlo. Como acquire() no deja salir nada mientras dura
-    // el freno, todo lo que salió antes de ponerlo pertenece a la ráfaga que lo provocó:
-    // el primero pone el freno y los demás no añaden nada. Solo un 429 de una petición
-    // que salió después —o sea, cuando ya se había levantado— cuenta como "otra vez".
-    // Es lo mismo que hace TCP: baja a la mitad una vez por pérdida, no por paquete.
+    // issuedAt is when the request that got the 429 went out (callers take it right
+    // after acquire()), and it's what keeps one burst from counting as several streaks.
+    // When Cloudflare cuts in, the download queue's four slots and the page in flight
+    // all come back 429 at once; counted one by one, a single server warning left the
+    // brake at sixteen seconds and the rate on the floor, needing 180 successes to climb
+    // back. Since acquire() lets nothing out while the brake holds, everything that went
+    // out before it was set belongs to the burst that caused it — the first 429 sets the
+    // brake, the rest add nothing. Only a 429 from a request issued after the brake was
+    // set (i.e. after it lifted) counts as "again." Same as TCP: halve once per loss,
+    // not once per packet.
     func reportRateLimited(retryAfter: Duration?, issuedAt: ContinuousClock.Instant = .now) {
-        // Sin ritmo (tests y previews) tampoco hay freno, diga lo que diga la cabecera
+        // No rate (tests, previews) means no brake either, whatever the header says.
         guard rate.isFinite else { return }
         if let holdStartedAt, issuedAt < holdStartedAt { return }
 
         consecutiveRateLimits += 1
         successStreak = 0
 
-        // Cada 429 seguido dobla la espera, hasta ocho veces la base. Si el servidor dice
-        // cuánto, manda él.
+        // Each 429 in a row doubles the wait, up to 8x the base. If the server names a
+        // duration, that wins.
         let backoff = coolOff * (1 << min(consecutiveRateLimits - 1, 3))
         let hold = retryAfter.map { min($0, Self.maxRetryAfter) } ?? backoff
         let now = ContinuousClock.now
@@ -148,9 +136,9 @@ actor RateLimiter {
         coolOffUntil = until
         holdStartedAt = now
 
-        // El cubo se vacía y no empieza a llenarse hasta que pase el freno: si se
-        // llenara mientras tanto, al levantarse saldría una ráfaga entera de golpe,
-        // que es justo lo que acaba de decir el servidor que no quiere.
+        // Tokens empty and stay empty until the brake lifts — refilling in the meantime
+        // would let a full burst out the moment it does, exactly what the server just
+        // said not to do.
         tokens = 0
         lastRefill = until
 
@@ -159,13 +147,13 @@ actor RateLimiter {
         logger.logThrottle("⏳ Rate limited · hold \(hold) · rate \(previous)→\(rate) req/s")
     }
 
-    // Un acierto reinicia la cuenta de 429 seguidos y, cada tantos, devuelve un poco de
-    // ritmo. Sube de uno en uno y baja a la mitad: es más barato equivocarse por lento
-    // que volver a ganarse el freno.
+    // A success resets the 429 streak and, every so often, gives back a bit of rate.
+    // Climbs by one, halves on a hit: cheaper to err on the slow side than to earn the
+    // brake again.
     //
-    // Con el mismo issuedAt que arriba y por la misma razón: un acierto de una petición
-    // que ya estaba en vuelo cuando se puso el freno no dice nada de cómo está el
-    // servidor ahora, así que ni borra la racha de 429 ni cuenta para recuperar ritmo.
+    // Same issuedAt logic as above: a success from a request already in flight when the
+    // brake was set says nothing about the server's state now, so it neither clears the
+    // 429 streak nor counts toward recovery.
     func reportSuccess(issuedAt: ContinuousClock.Instant = .now) {
         if let holdStartedAt, issuedAt < holdStartedAt { return }
 
@@ -184,12 +172,11 @@ actor RateLimiter {
         logger.logThrottle("🔼 Rate recovering · \(previous)→\(rate) req/s")
     }
 
-    // MARK: - Fichas
+    // MARK: - Tokens
 
     private func refill() {
         let now = ContinuousClock.now
-        // lastRefill puede estar en el futuro justo después de un 429: hasta entonces
-        // no hay nada que añadir
+        // lastRefill can sit in the future right after a 429 — nothing to add until then.
         guard now > lastRefill else { return }
         let elapsed = lastRefill.duration(to: now)
         lastRefill = now
@@ -200,7 +187,7 @@ actor RateLimiter {
         do {
             try await Task.sleep(for: duration)
         } catch {
-            // Si sleep lanza es porque han cancelado: quien esperaba ya no quiere salir
+            // sleep only throws on cancellation: whoever was waiting no longer wants out.
             throw .cancelled
         }
     }
@@ -211,8 +198,8 @@ actor RateLimiter {
 }
 
 extension HTTPURLResponse {
-    // El Retry-After de un 429, si viene y viene en segundos. La forma con fecha se
-    // ignora: Cloudflare no la usa y parsearla es más código que valor.
+    // A 429's Retry-After, if present and in seconds. The date form is ignored:
+    // Cloudflare doesn't send it, and parsing it would be more code than it's worth.
     var retryAfter: Duration? {
         guard let raw = value(forHTTPHeaderField: "Retry-After")?
                 .trimmingCharacters(in: .whitespaces),

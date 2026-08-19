@@ -1,14 +1,11 @@
 import Foundation
 
-// El catálogo de endpoints que usa la app.
-// Teniendo todas las rutas y nombres de parámetros en un fichero, el vocabulario de
-// la API aparece una sola vez. CharacterFilter es un tipo de dominio; traducirlo a
-// ?status=alive&gender=female es cosa de la capa de datos y va aquí.
+/// The catalog of endpoints the app uses. Keeping every path and parameter name in one
+/// file means the API's vocabulary appears exactly once. CharacterFilter is a domain
+/// type; translating it to `?status=alive&gender=female` is Data's job, done here.
 enum RickAndMortyAPI {
-    // La base por partes, en vez de parseada desde un string.
-    // URLComponents no puede fallar al construirse, así que aquí no hay que dar por
-    // bueno ningún literal. El único punto donde montar la URL todavía puede fallar
-    // es Endpoint.urlRequest, y ahí ya se avisa.
+    // The base built field by field, not parsed from a string — URLComponents can't
+    // fail to construct, so no literal here needs trusting on faith.
     static let base: URLComponents = {
         var components = URLComponents()
         components.scheme = "https"
@@ -37,11 +34,10 @@ enum RickAndMortyAPI {
             items.append(URLQueryItem(name: "species", value: filter.trimmedSpecies))
         }
 
-        // Aquí es donde "fresco" se traduce a HTTP. La API sirve las páginas con noventa
-        // días de caducidad, así que con la política normal una página ya vista sale de
-        // la caché de URLSession sin tocar la red; revalidar es mandar el ETag guardado y
-        // recibir un 304 sin cuerpo si no ha cambiado, que es lo que un refresco debe
-        // costar: una ida y vuelta, no otra descarga.
+        // Where "fresh" becomes HTTP. Pages carry a 90-day expiry, so under the normal
+        // policy a seen page loads from URLSession's cache untouched; revalidating
+        // sends the saved ETag and expects a bodyless 304 if nothing changed — a light
+        // round trip instead of another download.
         let cachePolicy: URLRequest.CachePolicy = switch freshness {
         case .acceptCached: .useProtocolCachePolicy
         case .fresh: .reloadRevalidatingCacheData
@@ -54,10 +50,9 @@ enum RickAndMortyAPI {
         Endpoint(path: "/character/\(id)")
     }
 
-    // Endpoint de lote: una petición para todos los episodios de un personaje en
-    // vez de una por episodio.
-    // Ojo al cambio de forma que esconde: /episode/1,2 contesta con un array y
-    // /episode/1 con un objeto suelto. Eso lo absorbe CharacterRemoteDataSource.
+    // Batch endpoint: one request for all of a character's episodes instead of one
+    // per episode. Hides a shape change — /episode/1,2 answers with an array,
+    // /episode/1 with a bare object — that CharacterRemoteDataSource absorbs.
     static func episodes(ids: [Int]) -> Endpoint {
         Endpoint(path: "/episode/\(ids.map(String.init).joined(separator: ","))")
     }

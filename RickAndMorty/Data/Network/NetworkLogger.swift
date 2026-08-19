@@ -1,37 +1,28 @@
 import Foundation
 import OSLog
 
-// La traza de red para depurar: por consola sale qué se pide y con qué código contesta
-// el servidor, con lo que ha tardado. Una línea por petición y otra por respuesta, sin
-// volcar el cuerpo: para seguir qué está llamando la app eso sobra, y una sola página de
-// personajes son ~19 KB de JSON que dejarían la consola ilegible.
-//
-// Va aquí y no en un decorador como RetryingHTTPClient aposta: un decorador solo ve el
-// Endpoint que entra y el modelo ya decodificado que sale, así que no puede enseñar el
-// código de estado. Este es el único sitio de la app con la respuesta cruda delante.
-//
-// En release no queda nada: los cuerpos se compilan solo en DEBUG y las llamadas desde
-// URLSessionHTTPClient se quedan vacías.
+/// Debug network trace: logs what's requested, what the server answers, and how long
+/// it took — one line per request and one per response, no body dump. Lives here and
+/// not in a decorator like `RetryingHTTPClient` because a decorator only sees the
+/// `Endpoint` going in and the decoded model coming out, never the status code. Compiles
+/// out entirely in release: bodies are DEBUG-only, so release calls are no-ops.
 struct NetworkLogger: Sendable {
-    // Una sola traza para toda la app: quien la usa la nombra directamente, no se
-    // inyecta. Es la excepción a la regla de inyectar y está aquí a propósito: nadie
-    // necesita otra —los tests la apagan por entorno— y un parámetro que nadie pasa es
-    // un seam de mentira.
+    // One shared trace for the app: named directly by callers, not injected. The
+    // exception to that rule on purpose — tests turn it off by environment, so an
+    // injection nobody would use is a fake seam.
     static let shared = NetworkLogger()
 
-    // Durante los tests se apaga: la suite lanza un montón de peticiones de mentira y el
-    // log taparía lo que se está mirando.
+    // Off during tests: the suite fires plenty of fake requests, and the log would
+    // bury what's actually being looked at.
     private let isEnabled = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
 
     private init() {}
 
-    // MARK: - Puntos de entrada
+    // MARK: - Entry points
 
-    // Las URLs salen con privacy: .public a sabiendas, y con ellas lo que el usuario
-    // teclea en la búsqueda (?name=...). Es una traza de depuración que solo existe en
-    // DEBUG, contra una API pública, y redactar la query sería dejar la consola sin lo
-    // único que hace falta ver: qué se está pidiendo. En un producto con datos
-    // personales de verdad la query iría con la privacidad por defecto.
+    // URLs log with privacy: .public on purpose, search text included — this is a
+    // DEBUG-only trace against a public API, and redacting the query would hide the
+    // one thing worth seeing: what's being asked for.
     func logRequest(_ request: URLRequest) {
         #if DEBUG
         guard isEnabled else { return }
@@ -43,8 +34,8 @@ struct NetworkLogger: Sendable {
         #if DEBUG
         guard isEnabled else { return }
         let line = "📥 Response \(response.statusCode) \(summary(of: request)) · \(formatted(duration))"
-        // Un 2xx es ruido de fondo y un 404 o un 500 es lo que se está buscando, así que
-        // salen por niveles distintos y el filtro de la consola los separa.
+        // A 2xx is background noise; a 404 or 500 is what you're looking for — different
+        // log levels so the console filter can tell them apart.
         if (200..<300).contains(response.statusCode) {
             Self.log.debug("\(line, privacy: .public)")
         } else {
@@ -53,9 +44,8 @@ struct NetworkLogger: Sendable {
         #endif
     }
 
-    // Vale igual para un fallo de transporte y para un payload que no decodifica: en los
-    // dos casos lo útil es el error de verdad, que a partir de aquí se traduce a AppError
-    // y se pierde. Un DecodingError trae la ruta exacta de la clave que no cuadra.
+    // Works the same for a transport failure or a payload that won't decode: either
+    // way, this is the last place to see the real error before it becomes an AppError.
     func logFailure(_ error: some Error, for request: URLRequest, duration: Duration) {
         #if DEBUG
         guard isEnabled else { return }
@@ -64,12 +54,10 @@ struct NetworkLogger: Sendable {
         #endif
     }
 
-    // Lo que decide el limitador de ritmo: cuándo se frena y a qué ritmo se vuelve. Sale
-    // como aviso y no como depuración porque es lo que hay que mirar cuando la rejilla
-    // se queda gris: dice si el servidor nos ha parado y cuánto.
-    // @autoclosure para que el texto —con sus duraciones y ritmos interpolados— solo se
-    // construya cuando de verdad se va a escribir: en release el cuerpo se compila vacío
-    // y no tendría sentido pagar el formateo para tirarlo.
+    // What the rate limiter decides: when it brakes and at what rate it recovers. Logs
+    // at .notice, not .debug — it's what to check when the grid goes gray.
+    // @autoclosure so the interpolated text is only built when it's actually logged;
+    // in release the body compiles empty, so formatting it would be wasted work.
     func logThrottle(_ message: @autoclosure () -> String) {
         #if DEBUG
         guard isEnabled else { return }
@@ -78,7 +66,7 @@ struct NetworkLogger: Sendable {
         #endif
     }
 
-    // MARK: - Formato
+    // MARK: - Formatting
 
     #if DEBUG
     private static let log = Logger(

@@ -1,8 +1,8 @@
 import Foundation
 
-// Manda un Endpoint y decodifica la respuesta.
-// No sabe nada de personajes ni de episodios, y justo por eso se puede decorar
-// (RetryingHTTPClient) y sustituir en tests sin tocar la red.
+/// Sends an `Endpoint` and decodes the response. Knows nothing about characters or
+/// episodes, which is exactly what lets it be decorated (`RetryingHTTPClient`) and
+/// swapped out in tests without touching the network.
 protocol HTTPClient: Sendable {
     func send<Response: Decodable & Sendable>(
         _ endpoint: Endpoint,

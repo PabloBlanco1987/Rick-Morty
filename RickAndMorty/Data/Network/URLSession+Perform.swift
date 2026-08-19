@@ -1,35 +1,27 @@
 import Foundation
 
-// Lo que devuelve una petición que ha llegado a contestar con un 2xx: los bytes y lo que
-// ha tardado la red, sin contar la espera por la ficha del limitador. La respuesta cruda
-// no viaja: el código de estado y el Retry-After ya se han consumido aquí dentro, y lo
-// único que queda por hacer con ella es decodificar o guardar los bytes.
+/// What a 2xx request returns: the bytes and how long the network took, not counting
+/// the wait for the limiter's token. No raw response travels past this — status code
+/// and Retry-After are already spent here, leaving only decoding or saving the bytes.
 struct HTTPExchange: Sendable {
     let data: Data
     let duration: Duration
 }
 
 extension URLSession {
-    // Una petición de verdad, de principio a fin: ficha del limitador, traza, transporte,
-    // código de estado y aviso al limitador de cómo ha ido.
-    //
-    // Es lo que comparten las dos únicas salidas a la red de la app —el JSON de
-    // URLSessionHTTPClient y las imágenes de ImageCache—, y vive aquí para que sea una
-    // sola: antes eran dos copias línea a línea, y dos copias es la forma más fácil de
-    // que dentro de un mes solo una sepa qué es un 429 o cuándo hay que avisar al
-    // limitador. Lo que cada una hace con los bytes —decodificar un modelo, guardarlos en
-    // disco— ya es cosa suya.
-    //
-    // La traza se nombra directamente y no se inyecta, como en el resto de la app: solo
-    // hay una y los tests la apagan por entorno.
+    /// A real request end to end: limiter token, logging, transport, status code, and
+    /// reporting back to the limiter how it went. Shared by the app's only two network
+    /// exits — URLSessionHTTPClient's JSON and ImageCache's images — living here so
+    /// there's one copy instead of two that drift on what a 429 means. What each caller
+    /// does with the bytes (decode a model, save to disk) is its own business.
     func perform(
         _ request: URLRequest,
         through limiter: RateLimiter
     ) async throws(AppError) -> HTTPExchange {
         let logger = NetworkLogger.shared
 
-        // Antes de trazar y de arrancar el reloj: la espera por una ficha no es tiempo
-        // de red, y en la traza lo que interesa es lo que tarda el servidor
+        // Before logging or starting the clock: waiting for a token isn't network time,
+        // and the log should show only what the server took.
         try await limiter.acquire()
 
         logger.logRequest(request)
@@ -57,14 +49,13 @@ extension URLSession {
             throw .unknown
         }
 
-        // Se traza antes de mirar el código de estado, para que un 404 o un 429 salgan
-        // por consola tal cual llegaron, sin pasar por la traducción a AppError
+        // Logged before checking the status code, so a 404 or 429 shows up exactly as
+        // it arrived, ahead of the AppError translation.
         logger.logResponse(http, for: request, duration: elapsed)
 
-        // El limitador se entera aquí y no en la traducción a AppError porque el
-        // Retry-After va en la respuesta cruda, y esta es la única que lo tiene delante.
-        // Y se le dice cuándo salió la petición: es lo que le deja distinguir un 429 de
-        // la ráfaga que ya frenó de uno nuevo.
+        // The limiter learns about it here, not in the AppError translation, because
+        // Retry-After lives in the raw response and this is the only place that sees
+        // it. issuedAt is what lets it tell a fresh 429 from one already in the brake.
         if http.statusCode == 429 {
             await limiter.reportRateLimited(retryAfter: http.retryAfter, issuedAt: start)
         } else if (200..<300).contains(http.statusCode) {

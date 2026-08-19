@@ -1,18 +1,11 @@
 import Foundation
 
-// Una petición descrita como valor, que solo se resuelve contra la base al enviarla.
-// Solo hay GET: la API es de solo lectura, y un método que nadie usa sería una promesa
-// que nadie cumple —no habría cuerpo ni Content-Type que lo respaldaran.
-// Montarlas con URLComponents y no interpolando strings es lo que hace que los valores
-// se escapen solos: buscar "Rick & Morty" o un nombre con acentos generaría una URL
-// mal formada sin enterarte.
+/// A request described as a value, resolved against the base only when sent. GET only —
+/// the API is read-only. Built with `URLComponents`, not string interpolation, so query
+/// values escape themselves: searching "Rick & Morty" won't silently produce a bad URL.
 struct Endpoint: Hashable, Sendable {
-    // Siempre empieza por /, para que se pegue al path de la base
     let path: String
     var queryItems: [URLQueryItem] = []
-    // Por petición y no solo en la sesión: la misma URL se pide con la política normal al
-    // navegar y revalidando cuando el usuario refresca, y la sesión no puede saber cuál
-    // de las dos es
     var cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy
 
     func urlRequest(base: URLComponents) -> URLRequest? {
