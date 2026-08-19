@@ -97,20 +97,20 @@ Three layers, with the dependency always pointing inward. Domain doesn't know HT
 exists; Presentation doesn't know a status code exists.
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ Presentation        SwiftUI views + @Observable ViewModels    │
-│                     ViewState<T>, error text                  │
-└───────────────────────────────┬──────────────────────────────┘
-                                │ uses
-┌───────────────────────────────▼──────────────────────────────┐
-│ Domain              Entities · Use cases · AppError           │
-│                     protocol CharacterRepository  ◄───────┐   │
-└───────────────────────────────────────────────────────────┼──┘
-                                                            │ implements
-┌───────────────────────────────────────────────────────────┼──┐
-│ Data                Repository · DataSource · Mappers · DTO   │
-│                     HTTPClient · Endpoint · ImageCache         │
-└──────────────────────────────────────────────────────────────┘
+     ┌───────────────────────────────────────────────────────┐
+     │ Presentation  SwiftUI views · @Observable ViewModels  │
+     │               ViewState<T> · error text               │
+     └───────────────────────────┬───────────────────────────┘
+                                 │ uses
+     ┌───────────────────────────▼───────────────────────────┐
+┌───►│ Domain        Entities · Use cases · AppError         │
+│    │               protocol CharacterRepository            │
+│    └───────────────────────────────────────────────────────┘
+│ implements
+│    ┌───────────────────────────────────────────────────────┐
+└────┤ Data          Repository · DataSource · Mappers · DTO │
+     │               HTTPClient · Endpoint · ImageCache      │
+     └───────────────────────────────────────────────────────┘
 ```
 
 The `CharacterRepository` protocol lives in **Domain**, next to whoever uses it, and

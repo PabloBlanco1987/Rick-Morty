@@ -100,20 +100,20 @@ Tres capas con la dependencia apuntando siempre hacia dentro. Domain no sabe que
 HTTP; Presentation no sabe que existe un código de estado.
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ Presentation        Vistas SwiftUI + ViewModels @Observable   │
-│                     ViewState<T>, textos de error             │
-└───────────────────────────────┬──────────────────────────────┘
-                                │ usa
-┌───────────────────────────────▼──────────────────────────────┐
-│ Domain              Entidades · Casos de uso · AppError       │
-│                     protocol CharacterRepository  ◄───────┐   │
-└───────────────────────────────────────────────────────────┼──┘
-                                                            │ implementa
-┌───────────────────────────────────────────────────────────┼──┐
-│ Data                Repositorio · DataSource · Mappers · DTO  │
-│                     HTTPClient · Endpoint · ImageCache        │
-└──────────────────────────────────────────────────────────────┘
+     ┌────────────────────────────────────────────────────────┐
+     │ Presentation  Vistas SwiftUI · ViewModels @Observable  │
+     │               ViewState<T> · textos de error           │
+     └───────────────────────────┬────────────────────────────┘
+                                 │ usa
+     ┌───────────────────────────▼────────────────────────────┐
+┌───►│ Domain        Entidades · Casos de uso · AppError      │
+│    │               protocol CharacterRepository             │
+│    └────────────────────────────────────────────────────────┘
+│ implementa
+│    ┌────────────────────────────────────────────────────────┐
+└────┤ Data          Repositorio · DataSource · Mappers · DTO │
+     │               HTTPClient · Endpoint · ImageCache       │
+     └────────────────────────────────────────────────────────┘
 ```
 
 El protocolo `CharacterRepository` vive en **Domain**, junto a quien lo usa, y lo
