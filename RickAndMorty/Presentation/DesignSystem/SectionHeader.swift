@@ -1,12 +1,12 @@
 import SwiftUI
 
-// El título de una sección dentro de una pantalla, con un acompañante opcional a la
-// derecha —un recuento, un estado, lo que la sección tenga que decir de sí misma.
-//
-// El acompañante entra por `@ViewBuilder` y no como un texto porque quien decide si hay
-// algo que enseñar es la pantalla: en la ficha, el recuento de episodios solo aparece
-// cuando han llegado, y ese `if` se escribe dentro del bloque sin que este componente
-// tenga que saber nada.
+/// A section's title within a screen, with an optional accessory on the right — a
+/// count, a status, whatever the section has to say about itself.
+///
+/// The accessory comes in via `@ViewBuilder` rather than plain text because the screen
+/// decides whether there's anything to show: on the detail screen, the episode count
+/// only appears once it's loaded, and that `if` lives inside the block without this
+/// component needing to know.
 struct SectionHeader<Accessory: View>: View {
     private let title: LocalizedStringResource
     private let accessory: Accessory

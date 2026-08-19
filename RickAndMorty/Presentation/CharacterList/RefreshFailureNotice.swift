@@ -1,17 +1,15 @@
 import SwiftUI
 
-// El aviso de que un pull to refresh ha fallado y la lista que se ve puede estar vieja.
-//
-// Es un aviso y no una pantalla de error porque la lista sigue siendo válida: lo que se
-// cuenta es que no se ha podido comprobar si ha cambiado, y eso cabe en dos líneas que
-// se van solas. Se va a los seis segundos —lo que se tarda en leerlas sin prisa—, al
-// tocarlo, o antes si otro refresco vuelve a traer datos, que es lo que hace el view
-// model al limpiar `refreshFailure`.
-//
-// No hay cola porque no hay más de un emisor: si un segundo refresh falla mientras
-// este aviso está en pantalla, se queda el que hay, con el error nuevo si es distinto,
-// y la cuenta atrás vuelve a empezar solo en ese caso. Un mismo fallo repetido no
-// reinicia nada: el aviso ya está diciendo lo que hay.
+/// Notice that a pull-to-refresh failed and the visible list may be stale.
+///
+/// A notice, not an error screen, because the list is still valid — only the check for
+/// changes failed, and that fits in two lines. Dismisses after six seconds, on tap, or
+/// sooner if another refresh succeeds, which is what the view model does when it clears
+/// `refreshFailure`.
+///
+/// No queue: there's only one emitter. If a second refresh fails while this notice is
+/// showing, the current one stays (with the new error text if it differs), and the
+/// countdown restarts only then — a repeated identical failure doesn't reset anything.
 struct RefreshFailureNotice: View {
     let error: AppError
     let dismiss: () -> Void
@@ -19,8 +17,7 @@ struct RefreshFailureNotice: View {
     private static let lifetime: Duration = .seconds(6)
 
     var body: some View {
-        // Es un botón entero, y no un texto con una cruz aparte, para que descartarlo
-        // sea tocar en cualquier sitio
+        // Whole button, not text plus a separate X, so dismissing is a tap anywhere
         Button(action: dismiss) {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.medium) {
                 Image(systemName: error.systemImage)
@@ -40,10 +37,10 @@ struct RefreshFailureNotice: View {
             }
             .padding(Theme.Spacing.large)
             .frame(maxWidth: Theme.Layout.noticeMaxWidth)
-            // El material y el borde son suyos y no de `cardSurface`: este aviso no es una
-            // superficie de contenido, es una pieza que flota por encima del listado
-            // mientras se lee y se va sola. El desenfoque es lo que lo separa de lo que
-            // tiene debajo sin necesidad de una sombra.
+            // Material and border are its own, not `cardSurface` — this isn't a content
+            // surface, it's a piece floating over the list while it's read and then
+            // dismisses itself. The blur separates it from what's underneath without
+            // needing a shadow.
             .background(.regularMaterial, in: .rect(cornerRadius: Theme.Radius.card))
             .overlay {
                 RoundedRectangle(cornerRadius: Theme.Radius.card)
@@ -52,13 +49,13 @@ struct RefreshFailureNotice: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("refresh-failed")
-        // Con id: si el error cambia mientras el aviso está en pantalla, la cuenta atrás
-        // vuelve a empezar; al desaparecer el aviso, SwiftUI cancela la tarea sola
+        // Keyed by id: if the error changes while the notice is showing, the countdown
+        // restarts; when the notice disappears, SwiftUI cancels the task automatically
         .task(id: error) {
             do {
                 try await Task.sleep(for: Self.lifetime)
             } catch {
-                // Cancelada: el aviso ya se ha ido por otro camino
+                // Cancelled: the notice already dismissed some other way
                 return
             }
             dismiss()

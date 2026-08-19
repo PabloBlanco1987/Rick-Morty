@@ -1,22 +1,20 @@
 import SwiftUI
 
-// Cómo se enseña un fallo, en las dos formas que necesita la app.
+// How a failure is shown, in the two forms the app needs.
 //
-// La diferencia entre las dos no es de estilo, es de a qué afecta el fallo. Si no hay
-// nada que enseñar, el error *es* la pantalla y ocupa el sitio del contenido
-// (`ErrorStateView`). Si lo que ya está en pantalla sigue siendo válido —una lista
-// cargada a la que le falta la página siguiente, una ficha a la que le faltan los
-// episodios—, el error es una pieza más dentro del contenido y no se lleva por delante
-// lo que el usuario ya estaba mirando (`InlineErrorView`).
+// The difference isn't style, it's what the failure affects. If there's nothing else to
+// show, the error *is* the screen and takes the content's place (`ErrorStateView`). If
+// what's already on screen is still valid — a loaded list missing its next page, a
+// detail missing its episodes — the error is just another piece within the content and
+// doesn't take over what the user was already looking at (`InlineErrorView`).
 //
-// El texto del botón lo pone quien llama y no el componente: «Try again» está en el
-// catálogo una vez por pantalla, y cada una puede decirlo a su manera sin que esto tenga
-// que saber desde dónde lo están usando.
+// The button's text is set by the caller, not the component: "Try again" lives in the
+// catalog once per screen, so each screen can phrase it its own way without this needing
+// to know where it's used.
 
-// El fallo cuando no hay nada más que enseñar.
-// Encima de `ContentUnavailableView` porque es la vista que iOS usa para esto en todas
-// sus apps: el usuario ya sabe leerla, y hereda gratis su tipografía, sus márgenes y su
-// comportamiento con tamaños grandes.
+/// The failure when there's nothing else to show. Built on `ContentUnavailableView`
+/// because it's what iOS uses for this across its own apps: users already know how to
+/// read it, and it comes with its typography, margins, and large-text behavior for free.
 struct ErrorStateView: View {
     let error: AppError
     let retryTitle: LocalizedStringResource
@@ -34,9 +32,9 @@ struct ErrorStateView: View {
     }
 }
 
-// El fallo de una parte, dentro del contenido que sigue siendo bueno.
-// En una tarjeta y alineado a la izquierda, como el resto de bloques de la app: es lo que
-// hace que se lea como «esta parte no ha llegado» y no como «la pantalla ha fallado».
+/// The failure of one part, within content that's still good. In a card, left-aligned
+/// like the rest of the app's blocks — reads as "this part didn't load", not "the screen
+/// failed".
 struct InlineErrorView: View {
     let error: AppError
     let retryTitle: LocalizedStringResource
@@ -55,8 +53,8 @@ struct InlineErrorView: View {
                 .buttonStyle(.bordered)
                 .padding(.top, Theme.Spacing.xSmall)
         }
-        // El texto se parte solo con tamaños grandes; sin esto la tarjeta se encogería al
-        // ancho de su línea más larga.
+        // Text wraps at large sizes; without this the card would shrink to its longest
+        // line's width.
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.large)

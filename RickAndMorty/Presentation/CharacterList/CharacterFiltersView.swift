@@ -1,17 +1,17 @@
 import SwiftUI
 
-// Los filtros del listado, en una hoja aparte.
-//
-// Van en una hoja y no en una barra fija encima del grid porque se tocan una vez cada
-// muchas: dejarlos siempre a la vista cuesta el alto de una fila de personajes en cada
-// pantalla, y en un grid ese sitio es justo lo que se está pidiendo.
-//
-// Se aplican al momento, sin botón de "aplicar". Detrás de la hoja está la lista de
-// verdad, así que al cerrar ya está cargada: pedirle además al usuario que confirme un
-// cambio cuyo resultado puede ver es un paso de más.
+/// The list's filters, in a separate sheet.
+///
+/// A sheet rather than a fixed bar above the grid, since they're touched rarely —
+/// keeping them always visible costs a row's worth of height on every screen, and in a
+/// grid that space is exactly what's being asked for.
+///
+/// Applied immediately, no "apply" button. The real list sits behind the sheet, so it's
+/// already loaded on close — asking the user to also confirm a change they can already
+/// see is one step too many.
 struct CharacterFiltersView: View {
-    // @Bindable y no @Binding de cada campo: los accesos del view model ya son los que
-    // saben qué hay que recargar y con cuánta prisa, así que la vista solo los enchufa.
+    // @Bindable, not per-field @Binding — the view model's accessors already know what
+    // to reload and how urgently, so the view just wires them up.
     @Bindable var viewModel: CharacterListViewModel
 
     @Environment(\.dismiss) private var dismiss
@@ -19,22 +19,22 @@ struct CharacterFiltersView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // Los dos selectores van juntos y sin cabecera de sección: la fila ya
-                // dice "Status" y "Gender" —es la etiqueta del Picker—, y repetirlo
-                // encima como título era leer lo mismo dos veces
+                // Both pickers share one section, no header: the row already says
+                // "Status" and "Gender" via the Picker label, so a title above would
+                // repeat it
                 Section {
                     Picker(.characterFiltersStatusPickerTitle, selection: $viewModel.statusFilter) {
-                        // "Any" es un caso más de la selección y no un botón de quitar
-                        // aparte: quitar un filtro es elegir no filtrar por él, y así se
-                        // ve en el mismo sitio en el que se puso
+                        // "Any" is just another selection case, not a separate clear
+                        // button — removing a filter means choosing not to filter by
+                        // it, visible in the same spot it was set
                         Text(.characterFiltersStatusAny).tag(Character.Status?.none)
                         ForEach(Character.Status.allCases, id: \.self) { status in
                             Text(status.displayName).tag(Character.Status?.some(status))
                         }
                     }
-                    // Identificador para los tests de UI: el texto que enseña el control
-                    // lleva dentro el valor elegido ("Status, Any"), así que buscarlo por
-                    // etiqueta sería buscar algo que cambia solo
+                    // UI test identifier: the control's displayed text includes the
+                    // chosen value ("Status, Any"), so searching by label would target
+                    // something that changes on its own
                     .accessibilityIdentifier("filter-status")
 
                     Picker(.characterFiltersGenderPickerTitle, selection: $viewModel.genderFilter) {
@@ -48,9 +48,9 @@ struct CharacterFiltersView: View {
 
                 Section {
                     TextField(String(localized: .characterFiltersSpeciesFieldPrompt), text: $viewModel.speciesFilter)
-                        // La API compara la especie por texto, así que ni el corrector ni
-                        // la mayúscula automática ayudan aquí: solo cambian lo que el
-                        // usuario ha escrito a propósito
+                        // API matches species by exact text, so autocorrect and
+                        // auto-capitalization only distort what the user typed on
+                        // purpose
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .accessibilityIdentifier("filter-species")
@@ -73,8 +73,8 @@ struct CharacterFiltersView: View {
                 }
             }
         }
-        // Media hoja: los filtros ocupan poco y así la lista de detrás sigue viéndose
-        // mientras se cambian, que es lo que deja comprobar el resultado sin cerrar
+        // Medium detent: filters take little space, so the list behind stays visible
+        // while changing them, letting the result be checked without closing
         .presentationDetents([.medium, .large])
     }
 }

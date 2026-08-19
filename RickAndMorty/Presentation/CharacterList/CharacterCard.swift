@@ -1,32 +1,32 @@
 import SwiftUI
 
-// La celda del listado.
-// Equatable no es decoración: con .equatable() SwiftUI compara la celda entera contra
-// la anterior y se salta la reconstrucción del cuerpo si el personaje no ha cambiado.
-// Al añadir una página, lo único que hay que construir son las 20 celdas nuevas; las
-// 800 de antes se descartan con una comparación de structs. Se puede hacer porque
-// Character es un valor y la celda no guarda nada más: si le colgáramos un closure
-// dejaría de ser comparable y la optimización desaparecería sin avisar.
+/// The list's cell.
+/// `Equatable` isn't decoration: with `.equatable()` SwiftUI compares the whole cell
+/// against the previous one and skips rebuilding the body if the character hasn't
+/// changed. Appending a page only builds the 20 new cells; the previous 800 are
+/// skipped by a struct comparison. This works because `Character` is a value and the
+/// cell holds nothing else — attaching a closure would break comparability and the
+/// optimization would silently vanish.
 struct CharacterCard: View, Equatable {
     let character: Character
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             CachedAsyncImage(url: character.imageURL)
-                // Cuadrada: los avatares de la API lo son, y fijar la proporción antes
-                // de que llegue la imagen es lo que evita que la fila entera dé un
-                // salto de altura cuando cada una aterriza.
+                // Square: API avatars are square, and fixing the ratio before the
+                // image loads prevents the whole row from jumping in height as each
+                // one lands.
                 .aspectRatio(1, contentMode: .fit)
                 .overlay(alignment: .topTrailing) {
                     CharacterStatusBadge(status: character.status)
                         .padding(Theme.Spacing.medium)
                 }
 
-            // Sin límite de líneas en el nombre y con dos para la especie. Con un tope de
-            // dos, "Abadango Cluster Princess" salía con puntos suspensivos desde el
-            // tamaño xxLarge en dos columnas, y con uno la especie recortaba "Mythological
-            // Creature" incluso a tamaño normal. La celda ya se estira a la altura de la
-            // fila, así que una línea más solo cuesta alto, no recorta a la vecina.
+            // No line limit on the name, two lines for the species. With a cap of two,
+            // "Abadango Cluster Princess" truncated from xxLarge in two columns; with
+            // one, the species clipped "Mythological Creature" even at normal size.
+            // The cell already stretches to row height, so an extra line only costs
+            // height — it doesn't clip the neighbor.
             VStack(alignment: .leading, spacing: Theme.Spacing.small) {
                 Text(character.name)
                     .font(.cardTitle)
@@ -41,19 +41,18 @@ struct CharacterCard: View, Equatable {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Theme.Spacing.medium)
         }
-        // Estirada hasta la altura de la fila para que dos celdas con nombres de
-        // distinto largo no dejen el fondo a media asta
+        // Stretched to row height so two cells with names of different length don't
+        // leave the background half-drawn
         .frame(maxHeight: .infinity, alignment: .top)
         .cardSurface()
     }
 }
 
-// El mismo hueco que ocupa una celda, sin datos.
-// Se pinta la forma de verdad y no un rectángulo genérico para que al llegar los
-// personajes no cambie nada de sitio: la carga deja de verse como un salto y pasa a
-// verse como que el contenido se rellena. Los tokens son los mismos que los de la celda,
-// así que el hueco y lo que lo rellena miden lo mismo por construcción y no por haberlo
-// copiado bien.
+/// The same space a cell occupies, without data.
+/// Renders the real shape rather than a generic rectangle, so nothing shifts once
+/// characters arrive — loading reads as content filling in, not as a jump. Uses the
+/// same tokens as the cell, so the placeholder and its content match by construction,
+/// not by having copied it correctly.
 struct CharacterCardSkeleton: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

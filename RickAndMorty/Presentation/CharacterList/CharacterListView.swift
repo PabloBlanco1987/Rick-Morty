@@ -1,44 +1,43 @@
 import OSLog
 import SwiftUI
 
-// El listado de personajes.
-// La vista no decide nada: pinta el estado que le da el view model y le devuelve los
-// gestos. Todo el cuerpo es un switch exhaustivo sobre ViewState, así que si mañana
-// aparece un estado nuevo el compilador señala este fichero en vez de dejar una
-// pantalla en blanco en producción.
+/// The character list.
+/// The view decides nothing: it renders the state the view model gives it and hands
+/// back gestures. The whole body is an exhaustive switch over `ViewState`, so if a new
+/// state appears later, the compiler flags this file instead of leaving a blank
+/// screen in production.
 struct CharacterListView: View {
     @Bindable var viewModel: CharacterListViewModel
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    // La misma caché que usan las celdas: desde aquí se le adelantan las imágenes de la
-    // página que acaba de llegar y se le retiene la red mientras el scroll va lanzado
+    // Same cache the cells use: prefetches images for the page that just arrived, and
+    // holds off network while the scroll is flinging
     @Environment(\.imageCache) private var imageCache
 
     @State private var isShowingFilters = false
 
-    // A partir de qué velocidad una deceleración cuenta como fling y no como un flick
-    // para seguir leyendo. Un flick suave decelera durante un segundo mientras el
-    // usuario ya está mirando las celdas nuevas: pausar ahí sería dejarlas grises justo
-    // cuando las mira. Un fling de verdad pasa por dos o tres pantallas que nadie ve.
+    // Velocity threshold above which deceleration counts as a fling, not a reading
+    // flick. A gentle flick decelerates for about a second while the user is already
+    // looking at the new cells — pausing there would leave them grey right as they're
+    // viewed. A real fling passes through two or three screens nobody sees.
     //
-    // La unidad de `ScrollPhaseChangeContext.velocity` no está documentada; medida en el
-    // simulador es puntos por milisegundo, igual que en UIKit: un fling fuerte sale a
-    // ~5,5 y un flick de lectura no llega a 1. Dos separa los dos gestos con margen. La
-    // traza de abajo se queda para volver a mirarlo si un día cambia.
+    // The unit of `ScrollPhaseChangeContext.velocity` isn't documented; measured on the
+    // simulator it's points per millisecond, same as UIKit — a strong fling hits ~5.5,
+    // a reading flick stays under 1. 2 separates the two gestures with margin. The
+    // debug log below stays in case this needs revisiting.
     private static let flingVelocity: CGFloat = 2
 
     var body: some View {
         content
             .navigationTitle(.characterListTitle)
-            // La búsqueda es del servidor, no un filtrado de lo que ya está cargado:
-            // buscar entre las veinte celdas que ha traído la primera página sería
-            // buscar en el 2% de los personajes y decirle al usuario que no hay más.
+            // Search hits the server, not a filter over what's already loaded:
+            // searching the twenty cells from the first page alone would search 2% of
+            // the characters and tell the user there's nothing else.
             .searchable(text: $viewModel.searchText, prompt: .characterListSearchPrompt)
-            // Por lo mismo que en el campo de especie: la API compara por texto, así que
-            // el corrector solo cambia lo que el usuario ha escrito a propósito —"squanchy"
-            // no es una palabra— y la mayúscula automática no aporta nada a una búsqueda
-            // que no distingue mayúsculas
+            // Same as the species field: the API matches by exact text, so autocorrect
+            // only distorts what the user typed on purpose — "squanchy" isn't a word —
+            // and auto-capitalization adds nothing to a search that's case-insensitive
             .autocorrectionDisabled()
             .textInputAutocapitalization(.never)
             .toolbar {
@@ -46,9 +45,9 @@ struct CharacterListView: View {
                     Button {
                         isShowingFilters = true
                     } label: {
-                        // El icono relleno cuando hay filtros puestos: al volver a la
-                        // pantalla es lo que explica por qué se están viendo doce
-                        // personajes en vez de ochocientos
+                        // Filled icon when filters are active: on returning to the
+                        // screen, it's what explains why twelve characters are
+                        // showing instead of eight hundred
                         Label(
                             .characterListFiltersButtonTitle,
                             systemImage: viewModel.hasActiveFilters
@@ -64,9 +63,9 @@ struct CharacterListView: View {
             .task { await viewModel.onAppear() }
     }
 
-    // @ViewBuilder y no AnyView: cada rama conserva su tipo, así que SwiftUI puede
-    // seguir comparando vistas entre recomposiciones. AnyView le quitaría esa
-    // información justo en la pantalla que más celdas tiene.
+    // @ViewBuilder, not AnyView: each branch keeps its type, so SwiftUI can keep
+    // diffing views across recompositions. AnyView would erase that on the screen
+    // with the most cells.
     @ViewBuilder
     private var content: some View {
         switch viewModel.state {
@@ -87,21 +86,21 @@ struct CharacterListView: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: Theme.Layout.gridSpacing) {
                 ForEach(characters) { character in
-                    // La navegación va por valor: la celda dice a qué personaje lleva y
-                    // es RootView, que es quien conoce el grafo de dependencias, la que
-                    // decide qué se construye con él. Así el listado no tiene que
-                    // arrastrar el caso de uso del detalle sin usarlo para nada.
+                    // Navigation is value-based: the cell says which character it
+                    // leads to, and RootView, which owns the dependency graph, decides
+                    // what gets built with it. This way the list doesn't have to carry
+                    // the detail use case around unused.
                     NavigationLink(value: character) {
                         CharacterCard(character: character)
                             .equatable()
                     }
                     .buttonStyle(.plain)
-                    // El identificador para los tests de UI va en el enlace, que es el
-                    // botón que XCTest toca, y no en la celda de dentro
+                    // UI test identifier goes on the link, the button XCTest taps, not
+                    // on the cell inside
                     .accessibilityIdentifier("character-\(character.id)")
-                    // El prefetch se dispara al aparecer, no al llegar al fondo:
-                    // cuando el usuario ve la última fila, la página siguiente ya
-                    // tiene que estar de camino.
+                    // Prefetch fires on appear, not on reaching the bottom: by the
+                    // time the user sees the last row, the next page already needs to
+                    // be on its way.
                     .onAppear { viewModel.loadNextPageIfNeeded(after: character) }
                 }
             }
@@ -110,12 +109,11 @@ struct CharacterListView: View {
         }
         .contentMargins(Theme.Layout.screenMargin, for: .scrollContent)
         .refreshable { await viewModel.refresh() }
-        // El aviso de refresco fallido, entre el título y la rejilla: es donde estaba el
-        // indicador de refresco del que viene. Como inset del área segura y no como
-        // overlay porque el título grande flota sobre el contenido y un overlay quedaba
-        // debajo de él; así el aviso tiene su franja y la rejilla se aparta los segundos
-        // que dura. Solo existe con la lista delante, que es la única pantalla desde la
-        // que se puede refrescar.
+        // Refresh-failure notice sits between title and grid, where the refresh
+        // spinner used to be. A safe-area inset, not an overlay, because the large
+        // title floats above content and an overlay would sit under it; this way the
+        // notice gets its own strip and the grid steps aside for as long as it lasts.
+        // Only exists with the list on screen, the only screen refresh happens from.
         .safeAreaInset(edge: .top, spacing: 0) {
             if let error = viewModel.refreshFailure {
                 RefreshFailureNotice(error: error) { viewModel.dismissRefreshFailure() }
@@ -124,28 +122,28 @@ struct CharacterListView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        // Con "reducir movimiento" el aviso aparece y se va sin animar, igual que el
-        // fundido de las imágenes: la regla de la app es no mover nada, ni siquiera un
-        // desvanecido, cuando el usuario ha pedido que no se mueva.
+        // With "reduce motion" the notice appears and disappears without animating,
+        // same as the image fade: the app's rule is to move nothing, not even a fade,
+        // once the user has asked for no motion.
         .animation(Theme.Motion.notice(reduceMotion: reduceMotion), value: viewModel.refreshFailure)
-        // Precalienta la página que acaba de llegar mientras el usuario lee la anterior.
-        // Con id: cuando llega otra página se cancela el calentamiento de la anterior y
-        // arranca el suyo, así que un fling que encadena páginas solo calienta la última,
-        // que es hacia donde va el usuario. Un cambio de filtro cambia las URLs y cancela
-        // igual. Lo que ya está en disco no cuesta nada.
+        // Prewarms the page that just arrived while the user reads the previous one.
+        // Keyed by id: a new page cancels the previous warm-up and starts its own, so
+        // a fling that chains pages only warms the last one, which is where the user
+        // is heading. A filter change swaps the URLs and cancels the same way.
+        // Whatever's already on disk costs nothing.
         .task(id: viewModel.latestPageImageURLs) {
             await imageCache.warm(viewModel.latestPageImageURLs)
         }
-        // Mientras el scroll va lanzado no sale nada a la red: cada petición de un fling
-        // es cupo gastado en una celda que ya no está cuando llega, y es el cupo que le
-        // falta a la pantalla donde se aterriza. Lo que ya está en memoria o en disco
-        // sigue apareciendo. Es el scrollViewDidEndDecelerating de toda la vida.
+        // Nothing goes out to the network while the scroll is flinging: every request
+        // during a fling spends bandwidth on a cell that's gone by the time it lands,
+        // bandwidth the screen it settles on then lacks. What's already in memory or
+        // on disk still shows. This is the old scrollViewDidEndDecelerating.
         .onScrollPhaseChange { _, phase, context in
             setNetworkPaused(isFlinging(phase, context))
         }
-        // Si la rejilla se va en mitad de un fling —un filtro que la sustituye por el
-        // esqueleto— nadie llegaría a levantar la pausa. La cola además la caduca sola;
-        // esto es el cinturón y aquello los tirantes.
+        // If the grid disappears mid-fling — a filter swapping it for the skeleton —
+        // nothing would ever lift the pause. The cache also expires it on its own;
+        // this is belt, that's suspenders.
         .onDisappear { setNetworkPaused(false) }
     }
 
@@ -172,10 +170,10 @@ struct CharacterListView: View {
     @ViewBuilder
     private var footer: some View {
         if let error = viewModel.nextPageError {
-            // El fallo de una página va aquí, debajo de lo que ya se ve, y no en una
-            // pantalla de error: las páginas cargadas siguen siendo válidas. Es la misma
-            // tarjeta que usa la ficha cuando le fallan los episodios, por lo mismo: lo
-            // que hay en pantalla sigue valiendo y el fallo es de una parte.
+            // A page failure goes here, below what's already showing, not as an error
+            // screen: loaded pages are still valid. Same card the detail screen uses
+            // when episodes fail, for the same reason: what's on screen still holds
+            // and only a part failed.
             InlineErrorView(error: error, retryTitle: .characterListRetryButton) {
                 viewModel.retryNextPage()
             }
@@ -185,25 +183,25 @@ struct CharacterListView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Theme.Spacing.xLarge)
         }
-        // Cuando ya no quedan páginas no se pone nada. Un "no hay más" al final de una
-        // lista de 826 personajes es ruido: que se acabe ya se ve.
+        // Nothing shows once there are no more pages. A "no more results" at the end
+        // of an 826-character list is noise — it's already obvious it ended.
     }
 
     private var columns: [GridItem] {
-        // Con tamaños de accesibilidad el nombre necesita el ancho entero, así que el
-        // grid pasa a una columna antes que recortar texto. Es adaptive y no un número
-        // fijo de columnas para que el iPad y el modo horizontal salgan gratis.
+        // At accessibility sizes the name needs the full width, so the grid drops to
+        // one column rather than clip text. Adaptive, not a fixed column count, so
+        // iPad and landscape come for free.
         let minimum = dynamicTypeSize.isAccessibilitySize
             ? Theme.Layout.accessibilityGridMinimumColumnWidth
             : Theme.Layout.gridMinimumColumnWidth
         return [GridItem(.adaptive(minimum: minimum), spacing: Theme.Layout.gridSpacing)]
     }
 
-    // MARK: - Estados
+    // MARK: - States
 
-    // Vacío por una búsqueda y vacío de verdad no son el mismo estado para el usuario:
-    // en el primero hay algo que hacer —quitar lo que acota— y en el segundo no hay nada
-    // que decir más que que no hay nada.
+    // Empty from a search and truly empty aren't the same state to the user: the
+    // first has something to do — clear what's narrowing it — the second has nothing
+    // to say beyond there being nothing.
     @ViewBuilder
     private var emptyView: some View {
         if viewModel.isNarrowed {
@@ -212,8 +210,9 @@ struct CharacterListView: View {
             } description: {
                 Text(.characterListNoMatchesDescription)
             } actions: {
-                // El botón dice lo que va a quitar: ofrecer "quitar los filtros" a quien
-                // solo ha tecleado una búsqueda es ofrecerle deshacer algo que no hizo
+                // The button says exactly what it'll clear: offering "clear filters"
+                // to someone who only typed a search offers to undo something they
+                // never did
                 Button(clearNarrowingTitle) { viewModel.clearSearchAndFilters() }
                     .buttonStyle(.borderedProminent)
             }

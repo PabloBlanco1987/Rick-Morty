@@ -1,25 +1,19 @@
 import Foundation
 import Observation
 
-// El estado y las acciones de la pantalla de detalle.
-//
-// La diferencia con el listado está en de dónde se llega: a esta pantalla se entra
-// desde una celda que ya tenía el personaje entero, así que hacer esperar al usuario a
-// que vuelva el servidor para enseñarle un nombre que ya estaba en la pantalla anterior
-// sería una espera inventada. Por eso el personaje que venía de la lista se guarda
-// aparte y la cabecera se pinta en el primer frame; lo que de verdad hay que ir a
-// buscar son los episodios.
-//
-// Aun así se pide el detalle completo por id y no solo los episodios: es lo que hace
-// que la pantalla siga funcionando si mañana se llega a ella por un enlace profundo o
-// una notificación, sin nadie que le pase el personaje por delante.
+/// State and actions for the detail screen. Unlike the list, this screen is reached
+/// from a cell that already had the full character, so waiting on the server to show a
+/// name the previous screen already had would be a fake wait: the known character is
+/// kept aside and the header paints on the first frame — only the episodes are actually
+/// fetched. The full detail is still requested by id, not just episodes, so the screen
+/// keeps working if it's ever reached without one — a deep link, a notification.
 @MainActor
 @Observable
 final class CharacterDetailViewModel {
     private(set) var state: ViewState<CharacterDetail> = .idle
 
-    // Lo que ya se sabía al navegar. Es opcional porque el view model no da por hecho
-    // que siempre se llegue desde la lista.
+    // What was already known on navigation. Optional because the view model doesn't
+    // assume it's always reached from the list.
     private let knownCharacter: Character?
 
     private let characterID: Int
@@ -35,31 +29,30 @@ final class CharacterDetailViewModel {
         self.fetchCharacterDetail = fetchCharacterDetail
     }
 
-    // Lo que pinta la cabecera. Lo cargado manda sobre lo que traíamos: si el servidor
-    // dice que el personaje ha cambiado de ubicación desde que se cargó la lista, lo que
-    // vale es lo nuevo.
+    // What paints the header. Loaded wins over known: if the server says the character
+    // moved since the list loaded, the new value stands.
     var character: Character? {
         state.value?.character ?? knownCharacter
     }
 
-    // Los episodios solo existen cuando ha llegado el detalle. Se separa de `state`
-    // porque la vista los trata como una sección propia: mientras cargan, la cabecera
-    // ya está puesta.
+    // Episodes exist only once the detail arrives. Kept separate from `state` because
+    // the view treats them as their own section — the header is already up while
+    // they're still loading.
     var episodes: [Episode] {
         state.value?.episodes ?? []
     }
 
-    // Un fallo con el personaje ya en pantalla no es lo mismo que un fallo en blanco.
-    // En el primer caso lo que se cae es una sección; en el segundo, la pantalla entera.
+    // A failure with the character already on screen isn't the same as a blank
+    // failure: the first drops a section, the second drops the whole screen.
     var hasContentOnScreen: Bool {
         character != nil
     }
 
-    // La llama el .task de la vista, y solo carga la primera vez. Aquí no es por volver
-    // de otra pantalla —el detalle es la cima de la pila y se destruye al hacer pop—,
-    // sino para que la regla sea la misma que en el listado y aguante lo que venga: un
-    // enlace profundo, una hoja encima, un split view en iPad, cualquier cosa que haga
-    // reaparecer la vista sin recrearla no puede costar otra petición.
+    // Called by the view's .task, and only loads the first time. Not for returning
+    // from another screen — the detail is the top of the stack and gets destroyed on
+    // pop — but so the rule matches the list and holds up to anything that could
+    // reappear the view without recreating it: a deep link, a sheet on top, a split
+    // view on iPad.
     func onAppear() async {
         guard case .idle = state else { return }
         await load()
@@ -74,13 +67,13 @@ final class CharacterDetailViewModel {
 
         do {
             let detail = try await fetchCharacterDetail.execute(id: characterID)
-            // Salir de la pantalla mientras carga no puede dejar un estado escrito a
-            // destiempo sobre una vista que ya no está
+            // Leaving the screen mid-load can't leave a late write on a view that's
+            // no longer there.
             guard !Task.isCancelled else { return }
             state = .loaded(detail)
         } catch {
-            // Cancelar no es fallar: si el usuario ha vuelto atrás no hay nada que
-            // contarle.
+            // Cancelling isn't failing: if the user went back, there's nothing to
+            // tell them.
             guard error != .cancelled else { return }
             state = .failed(error)
         }

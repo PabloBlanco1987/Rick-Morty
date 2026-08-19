@@ -1,19 +1,18 @@
 import Foundation
 
-// El estado de una pantalla, en un solo valor.
-// La alternativa de siempre —isLoading, items y errorMessage por separado— permite
-// escribir estados que no existen: cargando y con error a la vez, o una lista vacía
-// sin saber si es que no hay nada o es que todavía no ha llegado. Con un enum esas
-// combinaciones no se pueden ni teclear, y la vista se convierte en un switch
-// exhaustivo que el compilador obliga a cubrir entero.
+/// A screen's state, in a single value. The usual alternative — separate isLoading,
+/// items, errorMessage — lets you write states that don't exist: loading and failed at
+/// once, or an empty list with no way to tell "nothing here" from "hasn't arrived yet."
+/// An enum makes those combinations impossible to even type, and turns the view into
+/// an exhaustive switch the compiler forces to cover entirely.
 enum ViewState<Value> {
-    // Todavía no se ha pedido nada. Distinto de .loading: al volver a la pantalla
-    // sirve para saber si hay que cargar o si ya hay algo cargado.
+    // Nothing requested yet. Different from .loading: on returning to the screen,
+    // this is what says whether to load or whether something's already loaded.
     case idle
     case loading
     case loaded(Value)
-    // Ha ido bien y no hay nada que enseñar. Es un resultado, no un fallo, y lo que
-    // se pinta no se parece en nada a una pantalla de error, así que tiene su caso.
+    // Went fine and there's nothing to show. A result, not a failure — and what's
+    // painted looks nothing like an error screen, so it gets its own case.
     case empty
     case failed(AppError)
 }

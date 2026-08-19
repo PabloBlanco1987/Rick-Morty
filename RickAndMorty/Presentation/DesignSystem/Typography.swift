@@ -1,50 +1,48 @@
 import SwiftUI
 
-// Los tokens de texto de la app.
-//
-// Todos son alias sobre los *text styles* del sistema —`.headline`, `.subheadline`,
-// `.caption`— y ninguno es un tamaño en puntos. Esa es la condición para que el Dynamic
-// Type siga funcionando hasta AX5 sin tocar nada: un `.system(size: 17)` se queda
-// clavado en 17 aunque el usuario haya pedido 43, y la pantalla que hoy se lee entera
-// deja de leerse. Aquí un token solo elige *papel*; el tamaño lo sigue eligiendo el
-// usuario en los ajustes.
-//
-// Van en `extension Font` y no dentro de `Theme` porque así el sitio donde se usan queda
-// igual de corto que con la API del sistema —`.font(.cardTitle)` al lado de
-// `.font(.headline)`— y porque el tipo de destino ya desambigua: no hace falta prefijo
-// para saber que eso es una fuente. Los tokens numéricos no tienen esa suerte —un
-// `CGFloat` es un `CGFloat` sea un hueco o un radio— y por eso viven con su nombre y
-// apellido en `Theme`.
+/// The app's text tokens.
+///
+/// All are aliases over the system's *text styles* — `.headline`, `.subheadline`,
+/// `.caption` — never a point size. That's what keeps Dynamic Type working up to AX5
+/// without touching anything: a `.system(size: 17)` stays pinned at 17 even if the user
+/// asked for 43, and a screen that reads fine today stops being readable. A token here
+/// only picks *role*; size stays the user's choice in Settings.
+///
+/// These live in `extension Font`, not inside `Theme`, so call sites stay as short as
+/// the system API — `.font(.cardTitle)` next to `.font(.headline)` — and because the
+/// target type already disambiguates: no prefix is needed to know it's a font. Numeric
+/// tokens don't have that luck — a `CGFloat` is a `CGFloat` whether it's a gap or a
+/// radius — so they live with their full name in `Theme`.
 extension Font {
-    // El nombre del personaje en la ficha, que es el título de la pantalla.
+    // The character's name on the detail screen — the screen's title.
     static let screenTitle: Font = .largeTitle.bold()
-    // «Information», «Episodes»: lo que abre una sección dentro de una pantalla.
+    // "Information", "Episodes": what opens a section within a screen.
     static let sectionTitle: Font = .title2.bold()
-    // El nombre en una celda del listado.
+    // The name in a list cell.
     static let cardTitle: Font = .headline
 
-    // Los tres pesos del texto corriente, que es donde estaba casi toda la variedad.
-    // Se distinguen por énfasis y no por sitio: el mismo `.label` vale para la especie de
-    // una celda, la etiqueta de una fila o el nombre de un episodio, y así no hace falta
-    // un token nuevo cada vez que aparece una pantalla.
+    // The three weights of body text, where most of the variety used to live.
+    // Distinguished by emphasis, not location: the same `.label` works for a cell's
+    // species, a row's label, or an episode's name, so no new token is needed each
+    // time a screen appears.
     static let label: Font = .subheadline
-    // El dato de una fila, y los símbolos que lo acompañan.
+    // A row's value, and the symbols next to it.
     static let labelEmphasis: Font = .subheadline.weight(.medium)
-    // El titular de un aviso o de un error, y el recuento de episodios.
+    // A notice or error's headline, and the episode count.
     static let labelStrong: Font = .subheadline.weight(.semibold)
 
-    // El cuerpo de un aviso: qué ha pasado y qué se puede hacer.
+    // A notice's body: what happened and what can be done.
     static let message: Font = .footnote
-    // Lo que acompaña a un dato sin ser el dato: la fecha de emisión de un episodio.
+    // What accompanies a value without being the value: an episode's air date.
     static let metadata: Font = .caption
 
-    // El texto de un chip.
+    // A chip's text.
     static let chipLabel: Font = .caption.weight(.medium)
-    // El código de un episodio. Monoespaciada porque «S01E01» y «S03E10» son el mismo
-    // dato con distinto contenido: alineados, la temporada se lee de un vistazo en toda
-    // la columna.
+    // An episode's code. Monospaced because "S01E01" and "S03E10" are the same kind of
+    // data with different content: aligned, the season reads at a glance down the
+    // column.
     static let chipCode: Font = .caption.monospaced().weight(.semibold)
 
-    // La silueta gris del hueco de una imagen mientras no ha llegado.
+    // The gray silhouette for an image placeholder while it hasn't loaded.
     static let placeholderIcon: Font = .largeTitle
 }

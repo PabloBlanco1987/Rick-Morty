@@ -1,20 +1,18 @@
 import SwiftUI
 
-// La ficha de un personaje: quién es, de dónde viene y en qué episodios sale.
-//
-// La pantalla se pinta en dos tiempos a propósito. La cabecera sale con lo que ya venía
-// de la lista, así que al tocar una celda hay contenido en el primer frame; lo único
-// que muestra que algo está cargando es la sección de episodios, que es lo único que de
-// verdad hay que ir a buscar. Enseñar un spinner a pantalla completa por encima de
-// datos que ya se tenían es la forma más fácil de que una app parezca lenta sin serlo.
+/// A character's detail: who they are, where they're from, which episodes they're in.
+/// Paints in two beats on purpose — the header comes from what the list already had,
+/// so there's content on the first frame; only the episodes section shows loading,
+/// since that's the only thing actually fetched. A full-screen spinner over data
+/// already on hand is the easiest way for an app to look slow without being slow.
 struct CharacterDetailView: View {
     @State private var viewModel: CharacterDetailViewModel
 
-    // Cuántas veces se ha pedido cargar: 0 es el arranque y cada "Try again" suma uno.
-    // Es la identidad de la tarea de carga, y así la vista es la dueña de todas: al salir
-    // de la pantalla SwiftUI la cancela, y un reintento cancela al anterior si aún estaba
-    // en vuelo. Con un Task { } suelto en el botón, la petición seguía después de hacer
-    // pop y escribía el estado en un view model que ya nadie miraba.
+    // How many times a load's been requested: 0 is startup, each "Try again" adds one.
+    // It's the load task's identity, so the view owns every one of them — SwiftUI
+    // cancels it on dismiss, and a retry cancels whichever was still in flight. A loose
+    // Task { } on the button would keep running after pop and write into a view model
+    // nobody's watching anymore.
     @State private var loadAttempt = 0
 
     @MainActor
@@ -58,14 +56,14 @@ struct CharacterDetailView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            // El mismo margen que el listado: al navegar de una pantalla a la otra, el
-            // contenido no da un salto lateral.
+            // Same margin as the list: content doesn't shift sideways when navigating
+            // between the two screens.
             .contentMargins(Theme.Layout.screenMargin, for: .scrollContent)
             .accessibilityIdentifier("character-detail")
         }
     }
 
-    // MARK: - Cabecera
+    // MARK: - Header
 
     @ViewBuilder
     private var header: some View {
@@ -73,9 +71,8 @@ struct CharacterDetailView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.large) {
                 CachedAsyncImage(url: character.imageURL)
                     .aspectRatio(1, contentMode: .fit)
-                    // Con tope, porque los avatares de la API son de 300 px y en un iPad
-                    // a pantalla completa el ancho entero serían mil puntos de imagen
-                    // estirada. En un iPhone el tope no llega a aplicarse.
+                    // Capped: the API's avatars are 300px, and full-width on an iPad
+                    // would stretch that to a thousand points. Doesn't kick in on iPhone.
                     .frame(maxWidth: Theme.Layout.heroImageMaxWidth)
                     .clipShape(.rect(cornerRadius: Theme.Radius.hero))
 
@@ -90,7 +87,7 @@ struct CharacterDetailView: View {
         }
     }
 
-    // MARK: - Información
+    // MARK: - Facts
 
     @ViewBuilder
     private var facts: some View {
@@ -122,9 +119,9 @@ struct CharacterDetailView: View {
 
                     InfoRow(
                         label: String(localized: .characterDetailOriginLabel),
-                        // El lugar desconocido se dice como los demás valores
-                        // desconocidos de la ficha, en el idioma del usuario, en vez de
-                        // colar el "unknown" en minúscula que manda la API
+                        // An unknown place reads like the detail screen's other
+                        // unknown values, in the user's language, instead of leaking
+                        // the API's lowercase "unknown".
                         value: character.origin ?? String(localized: .characterDetailUnknownPlace),
                         systemImage: "globe"
                     )
@@ -140,14 +137,14 @@ struct CharacterDetailView: View {
         }
     }
 
-    // MARK: - Episodios
+    // MARK: - Episodes
 
     @ViewBuilder
     private var episodes: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
             SectionHeader(.characterDetailEpisodesTitle) {
-                // El recuento solo aparece cuando hay algo que contar: un "0" al lado del
-                // título mientras cargan es un dato que además es mentira.
+                // The count only shows once there's something to count — a "0" next
+                // to the title while loading would also be a lie.
                 if !viewModel.episodes.isEmpty {
                     Text(.characterDetailEpisodesCountBadge(viewModel.episodes.count))
                         .font(.labelStrong)
@@ -201,8 +198,8 @@ struct CharacterDetailView: View {
                     Divider()
                 }
 
-                // Los textos salen del catálogo aunque no se vean: solo dan el ancho de
-                // la barra gris, y así no queda ningún literal de interfaz en el código
+                // Text comes from the catalog even though it's never read — it only
+                // sets the gray bar's width, so no interface literal sits in the code.
                 EpisodeRow(
                     episode: Episode(
                         id: index,
@@ -224,10 +221,10 @@ struct CharacterDetailView: View {
     }
 }
 
-// El código a la izquierda y el título a la derecha; con tamaños de accesibilidad, el
-// código arriba y el título debajo. En horizontal, un "S01E01" a 43 pt de monoespaciada
-// se comía la mitad de la fila y al título le quedaban cinco letras por línea: se partía
-// "Episo-de" con guion y el propio código se doblaba en dos.
+/// Code on the left, title on the right; at accessibility sizes, code on top, title
+/// below. In horizontal layout, a monospaced "S01E01" at 43pt ate half the row, leaving
+/// the title five letters per line — "Episo-de" hyphenating, and the code itself
+/// wrapping in two.
 private struct EpisodeRow: View {
     let episode: Episode
 
@@ -241,7 +238,7 @@ private struct EpisodeRow: View {
         layout {
             Text(episode.code)
                 .font(.chipCode)
-                // Un código no se parte: antes que doblarse cede la línea al título
+                // A code never wraps — it yields the line to the title instead.
                 .fixedSize()
                 .tintedChip(in: .rect(cornerRadius: Theme.Radius.chip))
 
@@ -257,8 +254,8 @@ private struct EpisodeRow: View {
                 }
             }
         }
-        // El ancho lo pone la fila y no un Spacer: en la variante vertical un Spacer
-        // empujaría hacia abajo en vez de hacia la derecha
+        // Width comes from the row, not a Spacer: in the vertical variant a Spacer
+        // would push down instead of right.
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Theme.Spacing.large)
         .padding(.vertical, Theme.Spacing.medium)
@@ -266,16 +263,15 @@ private struct EpisodeRow: View {
 }
 
 extension Episode {
-    // El dominio guarda una Date y presentación decide cómo se escribe, así que la fecha
-    // sale en el formato del dispositivo: "2 dic 2013" en España y "Dec 2, 2013" en
-    // Estados Unidos, sin que el modelo sepa nada de locales.
+    // The domain stores a Date, presentation decides how it reads, so the date comes
+    // out in the device's format — "2 dic 2013" in Spain, "Dec 2, 2013" in the US —
+    // with the model knowing nothing about locales.
     //
-    // La zona horaria va fijada a GMT a propósito, y es lo mismo que hace el mapper al
-    // parsear: una fecha de emisión es un día de calendario, no un instante. La API dice
-    // "December 2, 2013" sin hora, así que se guarda como la medianoche de ese día en
-    // GMT; si aquí se formatease en la zona del dispositivo, en América —cualquier
-    // zona con desfase negativo— esa medianoche cae el día anterior y el piloto saldría
-    // emitido el 1 de diciembre. El locale, en cambio, sí es el del usuario.
+    // The time zone is pinned to GMT on purpose, matching the mapper's parsing: an air
+    // date is a calendar day, not an instant. The API says "December 2, 2013" with no
+    // time, stored as that day's midnight GMT; formatting in the device's zone would
+    // put that midnight a day earlier anywhere west of Greenwich, airing the episode a
+    // day early. The locale, though, is the user's.
     var formattedAirDate: String? {
         airDate?.formatted(Date.FormatStyle(timeZone: .gmt).day().month(.abbreviated).year())
     }

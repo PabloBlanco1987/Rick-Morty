@@ -1,18 +1,11 @@
 import Foundation
 
-// Cómo se cuenta cada fallo.
-// Vive en presentación porque el dominio dice qué ha pasado y la pantalla decide cómo
-// se dice: el mismo AppError.offline se lee distinto en una pantalla completa que en
-// un pie de lista.
-//
-// Todos los textos siguen la misma regla: primero qué ha pasado, después qué puede
-// hacer el usuario. "Error 500" no es ninguna de las dos cosas, y un código de estado
-// no le dice nada a nadie que no esté leyendo los logs.
-//
-// Los textos viven en un String Catalog (Localizable.xcstrings), con claves
-// "appError.<caso>.title" / "appError.<caso>.message". El sitio ya estaba preparado
-// para esto: entrar como localizaciones no ha cambiado la forma de esta extensión ni ha
-// tocado una sola vista.
+/// How each failure gets told. Lives in Presentation because the domain says what
+/// happened and the screen decides how to say it — the same AppError.offline reads
+/// differently full-screen than in a list footer. Every string follows the same rule:
+/// what happened, then what the user can do — "Error 500" is neither, and a status
+/// code means nothing to anyone not reading logs. Text lives in a String Catalog
+/// (Localizable.xcstrings), keyed "appError.<case>.title" / "appError.<case>.message".
 extension AppError {
     var title: String {
         switch self {

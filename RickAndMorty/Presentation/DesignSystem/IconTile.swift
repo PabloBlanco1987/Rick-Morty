@@ -1,24 +1,23 @@
 import SwiftUI
 
-// La caja de un símbolo, tintada, para poner delante de un dato.
-//
-// El símbolo es decoración: la etiqueta que va al lado ya dice de qué es la fila, así que
-// el icono puede ir en el color de acento sin que su contraste importe. Si algún día un
-// icono fuera el único portador de un dato, dejaría de poder ir así —y eso es justo lo
-// que este comentario tiene que recordar.
+/// The box for a symbol, tinted, to put in front of a piece of data.
+///
+/// The symbol is decoration: the label next to it already says what the row is about,
+/// so the icon can use the accent color without its contrast mattering. If an icon ever
+/// became the sole carrier of data, this would no longer hold — which is exactly what
+/// this comment needs to remind.
 struct IconTile: View {
     let systemImage: String
     var tint: Color = Theme.Tint.accent
 
-    // El lado crece con la letra. Fijo en 28 pt, desde el tamaño AX2 el símbolo se salía
-    // de su fondo y pisaba el hueco de la etiqueta.
+    // Side scales with type size. Fixed at 28 pt, the symbol overflowed its background
+    // and overlapped the label at AX2.
     @ScaledMetric(relativeTo: .subheadline) private var side: CGFloat = IconTile.baseSide
 
-    // La medida sin escalar, para quien tenga que alinear algo con la caja: `InfoRow`
-    // sangra su separador y su variante apilada con este mismo número. Un `@ScaledMetric`
-    // solo existe dentro de la vista que lo declara, así que la fila declara el suyo con
-    // esta misma base y `relativeTo:` en el mismo estilo; escalan igual porque parten de
-    // lo mismo.
+    // Unscaled size, for anything that must align with the box: `InfoRow` indents its
+    // separator and stacked variant by this same number. `@ScaledMetric` only exists
+    // within the view that declares it, so the row declares its own with this same base
+    // and `relativeTo:`; they scale identically since they start from the same value.
     static let baseSide: CGFloat = 28
 
     var body: some View {

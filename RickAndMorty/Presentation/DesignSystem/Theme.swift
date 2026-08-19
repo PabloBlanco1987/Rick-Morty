@@ -1,103 +1,99 @@
 import SwiftUI
 
-// Las decisiones de estilo de la app, en un sitio.
-//
-// Antes de esto cada vista elegía lo suyo, y el recuento lo decía todo: seis radios
-// distintos para cuatro formas, tres opacidades de verde que a ojo son la misma, y un
-// margen de pantalla que era 16 en el listado y 20 en el detalle. Nada de eso se ve
-// como un fallo, pero es exactamente lo que hace que una app parezca hecha a trozos.
-//
-// El sistema es deliberadamente pequeño: solo tokens que el proyecto ya estaba
-// decidiendo a mano. Lo que ya resuelve la plataforma —`Form`, `ContentUnavailableView`,
-// los estilos de botón, los materiales, los colores semánticos— se queda como está;
-// un sistema de diseño que pelea con las convenciones de iOS cuesta más de lo que da.
-//
-// Tres reglas más lo gobiernan, y están donde se aplican:
-//   · ninguna vista escribe un literal de estilo (si hace falta uno nuevo, es un token);
-//   · los tokens de texto son alias sobre *text styles*, nunca tamaños en puntos, que es
-//     lo que mantiene intacto el Dynamic Type —ver `Typography.swift`;
-//   · la escala manda en las distancias *entre* elementos; los tamaños intrínsecos de un
-//     componente —el punto del badge, el lado de la caja del icono— viven con él, porque
-//     crecen con la letra y no significan nada fuera de ahí.
+/// The app's style decisions, in one place.
+///
+/// Before this, each view chose its own, and the tally said it all: six different radii
+/// for four shapes, three green opacities that look identical, and a screen margin that
+/// was 16 in the list and 20 in the detail. None of that looks like a bug on its own,
+/// but it's exactly what makes an app feel assembled from pieces.
+///
+/// The system is deliberately small: only tokens the project was already deciding by
+/// hand. Whatever the platform already solves — `Form`, `ContentUnavailableView`, button
+/// styles, materials, semantic colors — stays as-is; a design system that fights iOS
+/// conventions costs more than it gives.
+///
+/// Three more rules govern it, enforced where they apply:
+///   · no view writes a style literal (if a new one is needed, it's a token);
+///   · text tokens are aliases over *text styles*, never point sizes, which is what
+///     keeps Dynamic Type intact — see `Typography.swift`;
+///   · the scale governs distances *between* elements; a component's intrinsic sizes —
+///     the badge dot, the icon box side — live with it, since they scale with type size
+///     and mean nothing outside it.
 enum Theme {
-    // Escala de 4, con un escalón de 2 para lo que va casi pegado.
-    //
-    // Los nombres son de talla y no de propósito a propósito: un espaciado no sabe si
-    // separa un título de su cuerpo o dos celdas, y bautizarlo `sectionGap` obliga a
-    // inventar un nombre nuevo la próxima vez que haga falta el mismo hueco en otro
-    // sitio. Los tokens con nombre de propósito son los de `Layout`, que sí lo tienen.
+    /// Scale of 4, with a step of 2 for what sits almost flush.
+    ///
+    /// Names are sized, not purposed, on purpose: a spacing value doesn't know whether
+    /// it separates a title from its body or two cells, and naming it `sectionGap`
+    /// forces a new name the next time the same gap is needed elsewhere. Purpose-named
+    /// tokens are `Layout`'s, which do have that.
     enum Spacing {
-        // Entre dos líneas del mismo bloque: un título y su fecha, un titular y su
-        // mensaje. Menos que esto ya es interlineado, no separación.
+        // Between two lines of the same block: a title and its date, a headline and
+        // its message. Less than this is line spacing, not separation.
         static let xxSmall: CGFloat = 2
         static let xSmall: CGFloat = 4
         static let small: CGFloat = 8
         static let medium: CGFloat = 12
         static let large: CGFloat = 16
         static let xLarge: CGFloat = 24
-        // Entre las secciones de una pantalla, que es la única separación que tiene que
-        // leerse como «aquí empieza otra cosa» sin necesidad de una línea.
+        // Between a screen's sections — the only gap that must read as "something new
+        // starts here" without needing a divider line.
         static let xxLarge: CGFloat = 32
     }
 
-    // Tres radios para tres papeles, y no seis para cuatro formas.
-    //
-    // El tamaño del radio es lo que dice de qué tamaño es la pieza: cuanto más grande la
-    // superficie, más grande la curva. Con 14 en el aviso, 16 en la celda y 18 en el
-    // bloque de datos, tres piezas del mismo tamaño se curvaban distinto sin que hubiera
-    // ninguna razón detrás.
+    /// Three radii for three roles, not six for four shapes.
+    ///
+    /// Radius size signals how big the piece is: the larger the surface, the larger the
+    /// curve. With 14 on the notice, 16 on the cell, and 18 on the info block, three
+    /// same-sized pieces curved differently for no reason at all.
     enum Radius {
-        // Lo pequeño que envuelve texto o un icono: chips, códigos de episodio, cajas de
-        // símbolo.
+        // Small pieces that wrap text or an icon: chips, episode codes, symbol boxes.
         static let chip: CGFloat = 10
-        // Todo lo que es una superficie de contenido: celdas, bloques, avisos.
+        // Any content surface: cells, blocks, notices.
         static let card: CGFloat = 16
-        // La imagen grande del detalle, que es la única pieza de su tamaño.
+        // The large detail image, the only piece of its size.
         static let hero: CGFloat = 20
     }
 
-    // Las medidas que sí tienen nombre de propósito, porque solo significan algo en su
-    // sitio: un ancho máximo no es «grande», es «lo que mide un avatar de la API».
+    /// Measurements that do have purpose names, since they only mean something in
+    /// place: a max width isn't "large", it's "what the API's avatar measures".
     enum Layout {
-        // El mismo margen en las dos pantallas. Cuando el listado usaba 16 y el detalle
-        // 20, la diferencia no se veía en ninguna captura suelta y sí se notaba al
-        // navegar entre las dos: el contenido daba un salto lateral de cuatro puntos.
+        // Same margin on both screens. When the list used 16 and the detail used 20,
+        // the difference was invisible in any single screenshot but showed when
+        // navigating between them: content jumped 4 points sideways.
         static let screenMargin = Spacing.large
         static let gridSpacing = Spacing.large
 
-        // Con tamaños de accesibilidad el nombre necesita el ancho entero, así que el
-        // grid pasa a una columna antes que recortar texto.
+        // At accessibility sizes the name needs the full width, so the grid drops to
+        // one column rather than truncate text.
         static let gridMinimumColumnWidth: CGFloat = 150
         static let accessibilityGridMinimumColumnWidth: CGFloat = 280
 
-        // Los avatares de la API son de 300 px: en un iPad a pantalla completa, el ancho
-        // entero serían mil puntos de imagen estirada. En un iPhone el tope no llega a
-        // aplicarse.
+        // API avatars are 300 px: full-width on a full-screen iPad would stretch to a
+        // thousand points. On iPhone the cap never kicks in.
         static let heroImageMaxWidth: CGFloat = 360
-        // Un aviso de dos líneas a lo ancho de un iPad se lee peor que centrado y
-        // acotado; es el ancho de columna de lectura de toda la vida.
+        // A two-line notice spanning an iPad's width reads worse than centered and
+        // capped; this is the classic reading-column width.
         static let noticeMaxWidth: CGFloat = 560
 
-        // Las celdas que caben en una pantalla larga. Menos dejaría un hueco debajo que
-        // delataría que aún no hay nada.
+        // Enough cells to fill a tall screen. Fewer would leave a gap below that gives
+        // away that nothing has loaded yet.
         static let skeletonCardCount = 8
         static let skeletonEpisodeCount = 4
     }
 
-    // El color de acento y su relleno.
-    //
-    // Es una constante de código y no un color del catálogo de recursos: `.green` ya se
-    // adapta a claro y oscuro y al modo de contraste alto, y un color propio obligaría a
-    // redefinir esas variantes a mano para acabar en el mismo verde. El día que haya
-    // marca se cambia esta línea —o pasa a ser `Color("Accent")`— y no se toca una sola
-    // vista.
+    /// The accent color and its fill.
+    ///
+    /// A code constant, not an asset-catalog color: `.green` already adapts to light,
+    /// dark, and increased contrast, while a custom color would require hand-redefining
+    /// those variants just to land on the same green. The day there's a brand color,
+    /// this line changes — or becomes `Color("Accent")` — and no view needs touching.
     enum Tint {
         static let accent: Color = .green
 
-        // Una sola opacidad para todos los rellenos tintados. Había 0,10, 0,12 y 0,15
-        // repartidas entre el chip del recuento, el código de episodio y el badge de
-        // estado: tres valores que a ojo son el mismo y que solo garantizaban que el
-        // cuarto sitio tuviera un cuarto valor.
+        // One opacity for every tinted fill. There used to be 0.10, 0.12, and 0.15
+        // spread across the count chip, episode code, and status badge — three values
+        // that look identical and only guaranteed a fourth site would get a fourth
+        // value.
         static let fillOpacity: Double = 0.12
 
         static func fill(_ color: Color) -> Color {
@@ -109,20 +105,19 @@ enum Theme {
         }
     }
 
-    // Las dos únicas animaciones de la app, y la regla que las gobierna.
-    //
-    // Con «reducir movimiento» no se mueve nada, ni siquiera un desvanecido: quien pide
-    // que no se mueva la pantalla no está pidiendo que se mueva más despacio. La regla
-    // estaba escrita a mano en los dos sitios que animan; devolver `Animation?` la deja
-    // escrita una vez y hace imposible olvidarla en el tercero, porque para animar hay
-    // que pasar por aquí.
+    /// The app's only two animations, and the rule that governs them.
+    ///
+    /// With Reduce Motion nothing moves, not even a fade: asking the screen not to
+    /// move isn't asking it to move slower. The rule used to be written by hand in both
+    /// places that animate; returning `Animation?` writes it once and makes it
+    /// impossible to forget in a third spot, since animating means going through here.
     enum Motion {
-        // La entrada de una imagen que ha habido que ir a buscar.
+        // The entrance of an image that had to be fetched.
         static func fade(reduceMotion: Bool) -> Animation? {
             reduceMotion ? nil : .easeOut(duration: 0.2)
         }
 
-        // La aparición y la salida del aviso de refresco fallido.
+        // The appearance and dismissal of the failed-refresh notice.
         static func notice(reduceMotion: Bool) -> Animation? {
             reduceMotion ? nil : .easeInOut(duration: 0.25)
         }

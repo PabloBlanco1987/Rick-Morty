@@ -1,132 +1,131 @@
 import Foundation
 import Observation
 
-// El estado y las acciones del listado.
-// No importa SwiftUI: no es una regla de estilo, es la comprobación de que aquí no se
-// ha colado nada de la vista. Lo que hay es un caso de uso, un estado y unos métodos,
-// y por eso se puede probar entero sin arrancar una jerarquía de vistas.
+/// The list's state and actions.
+/// Doesn't import SwiftUI — not a style rule, it's proof that no view concerns have
+/// leaked in here. What's here is a use case, a state, and some methods, so it can be
+/// tested whole without spinning up a view hierarchy.
 @MainActor
 @Observable
 final class CharacterListViewModel {
     private(set) var state: ViewState<[Character]> = .idle
 
-    // Cargar la página siguiente no es lo mismo que cargar la pantalla, así que no
-    // entra en `state`: la lista sigue estando cargada mientras llega lo que falta, y
-    // esto solo enciende el indicador del pie.
+    // Loading the next page isn't the same as loading the screen, so it's kept out of
+    // `state`: the list stays loaded while the rest arrives, and this only lights up
+    // the footer indicator.
     private(set) var isLoadingNextPage = false
 
-    // Y fallar al cargarla tampoco es lo mismo que fallar la pantalla. Si se cae la
-    // página 7, las seis que el usuario ya está viendo siguen siendo válidas: tirarlas
-    // para enseñar un error a pantalla completa sería castigarle por haber hecho
-    // scroll. El fallo se cuenta en el pie, con su botón de reintentar.
+    // And failing to load it isn't the same as failing the screen either. If page 7
+    // fails, the six pages the user is already viewing are still valid — discarding
+    // them for a full-screen error would punish them for scrolling. The failure shows
+    // in the footer, with its own retry button.
     private(set) var nextPageError: AppError?
 
-    // El pull to refresh que ha fallado con la lista aún delante. La lista se queda
-    // —es lo importante— y esto es lo que hace que el usuario se entere de que lo que
-    // ve puede estar viejo. Es el error y no una bandera para que el aviso pueda decir
-    // qué ha pasado. Lo quita la siguiente carga que trae datos, un cambio de criterio
-    // —que sustituye la lista de la que avisaba— y el propio aviso al descartarse; cuánto
-    // tiempo se ve es cosa de la vista.
+    // A pull-to-refresh that failed with the list still on screen. The list stays —
+    // that's the point — and this is what tells the user what they see may be stale.
+    // It's the error itself, not a flag, so the notice can say what happened. Cleared
+    // by the next load that brings data, a filter change (which replaces the list it
+    // was warning about), and the notice dismissing itself; how long it shows is up
+    // to the view.
     private(set) var refreshFailure: AppError?
 
-    // Las imágenes de la última página que ha llegado. La vista las precalienta mientras
-    // el usuario todavía está leyendo la anterior, para que cuando baje hasta ellas las
-    // celdas aparezcan ya con su imagen. Aquí solo se dice cuáles son: qué se hace con
-    // ellas —y con qué caché— es cosa de la vista, que es quien tiene la caché a mano.
-    // Son las de la última página y no todas las cargadas a propósito: lo que ya se ha
-    // visto ya está en disco, y lo que hay que adelantar es lo que viene.
+    // Images from the last page that arrived. The view prewarms them while the user is
+    // still reading the previous page, so cells already have their image once scrolled
+    // into view. This only states which URLs they are — what's done with them, and
+    // which cache, is up to the view, which holds the cache. Deliberately just the
+    // last page, not every loaded one: what's already been seen is already on disk;
+    // what needs prefetching is what's coming.
     private(set) var latestPageImageURLs: [URL] = []
 
-    // Los criterios activos. Es de solo lectura desde fuera porque cambiarlos no es
-    // asignar un valor: es tirar la lista, reiniciar la paginación y lanzar una
-    // petición. Todo eso pasa por los accesos de abajo, que son los que la vista usa.
+    // Active filter criteria. Read-only from outside because changing it isn't just
+    // assigning a value — it means discarding the list, resetting pagination, and
+    // firing a request. All of that goes through the accessors below, which is what
+    // the view uses.
     private(set) var filter: CharacterFilter = .empty
 
-    // internal y no private a propósito: los tests esperan a estas tareas para saber que
-    // la carga ha terminado, en vez de dormir un rato y confiar.
+    // internal, not private, on purpose: tests await these tasks to know loading
+    // finished, instead of sleeping a while and hoping.
     @ObservationIgnored private(set) var pagingTask: Task<Void, Never>?
     @ObservationIgnored private(set) var searchTask: Task<Void, Never>?
 
     private let fetchCharacters: FetchCharactersUseCase
 
-    // Metadatos de la última página que ha llegado: de aquí sale si queda siguiente y
-    // cuál es. No se guarda un contador aparte porque un contador y una lista pueden
-    // desincronizarse, y la página lo dice ella misma.
+    // Metadata from the last page that arrived: this is where whether there's a next
+    // page, and which one, comes from. No separate counter, because a counter and a
+    // list can drift out of sync, and the page states it itself.
     private var lastPage: Page<Character>?
 
-    // Los ids ya cargados, para no meter el mismo personaje dos veces
+    // IDs already loaded, so the same character isn't added twice
     private var loadedIDs: Set<Character.ID> = []
 
-    // El criterio con el que se cargó lo que hay en pantalla, ya recortado. Es lo que
-    // evita recargar lo mismo: teclear una letra y borrarla dentro de la espera, o
-    // cancelar la búsqueda justo después de escribir, vuelven al criterio que ya está
-    // pintado, y volver a pedirlo era tirar la lista, enseñar el esqueleto, perder el
-    // scroll y gastar una petición para acabar exactamente donde se estaba.
+    // The (already-trimmed) criteria that loaded what's on screen. Prevents reloading
+    // the same thing: typing a letter and deleting it within the debounce, or
+    // cancelling a search right after typing, returns to the criteria already
+    // rendered, and re-requesting it would discard the list, show the skeleton, lose
+    // scroll position, and spend a request to land exactly where it already was.
     private var loadedFilter: CharacterFilter?
 
-    // Los ids de las últimas celdas cargadas: al aparecer cualquiera de ellas se pide
-    // la página siguiente. Es un conjunto y no un índice porque un scroll rápido
-    // puede saltarse el .onAppear de una celda concreta; con que aparezca una de las
-    // ocho, la petición sale.
+    // IDs of the last loaded cells: the next page is requested when any of them
+    // appears. A set, not an index, because a fast scroll can skip a specific cell's
+    // `.onAppear`; with any one of the eight appearing, the request fires.
     private var prefetchTriggerIDs: Set<Character.ID> = []
 
-    // Ocho celdas antes del final. Con un grid de dos o tres columnas son entre tres y
-    // cuatro filas de margen: bastante para que la página siguiente llegue antes de
-    // que el usuario toque el fondo, y no tanto como para acabar trayendo páginas que
-    // nadie va a mirar.
+    // Eight cells before the end. With a two- or three-column grid that's three to
+    // four rows of margin: enough for the next page to arrive before the user hits
+    // the bottom, not so much that pages nobody will look at get fetched.
     private static let prefetchDistance = 8
 
-    // Cuándo llegó la última página, para no pedir la siguiente pegada a ella
+    // When the last page arrived, so the next one isn't requested right on top of it
     private var lastPageArrivedAt: ContinuousClock.Instant?
     private let sleep: @Sendable (Duration) async -> Void
 
-    // El freno entre páginas.
+    // The brake between pages.
     //
-    // Sin él, un gesto rápido encadena cuatro o cinco páginas en menos de un segundo:
-    // llega la página 2, sus celdas aparecen mientras el dedo sigue en marcha, eso pide
-    // la 3, y vuelta a empezar. Son cien personajes que nadie va a mirar y, sobre todo,
-    // una ráfaga de peticiones que se gana un 429 de la API, que a su vez tumba la
-    // carga que sí importaba.
+    // Without it, a fast gesture chains four or five pages in under a second: page 2
+    // arrives, its cells appear while the finger's still moving, that requests page 3,
+    // and so on. That's a hundred characters nobody will look at and, worse, a burst
+    // of requests that earns a 429 from the API, which then takes down the load that
+    // actually mattered.
     //
-    // Con el freno, un vistazo rápido llega al final de lo cargado, se encuentra el
-    // indicador y espera. Es lo que hace cualquier lista infinita que se porte bien: no
-    // se bloquea el scroll —eso se siente roto—, simplemente no hay contenido nuevo
-    // hasta que lo haya de verdad.
+    // With the brake, a fast swipe hits the end of what's loaded, finds the indicator,
+    // and waits. That's what any well-behaved infinite list does: scroll isn't
+    // blocked — that feels broken — there's just no new content until there really is
+    // some.
     private static let gapBetweenPages: Duration = .milliseconds(400)
 
-    // Lo que se espera desde la última tecla antes de preguntarle al servidor.
+    // Wait time since the last keystroke before asking the server.
     //
-    // La búsqueda es del servidor, así que sin esta espera escribir "rick" son cuatro
-    // peticiones de las que solo importa la última: las tres primeras salen, gastan
-    // conexión y llegan para ser descartadas. Trescientos cincuenta milisegundos es más
-    // que la pausa entre dos teclas escribiendo de corrido y bastante menos de lo que se
-    // percibe como que la app no responde.
+    // Search hits the server, so without this debounce, typing "rick" is four
+    // requests where only the last one matters: the first three fire, spend
+    // bandwidth, and land only to be discarded. 350 ms is more than the pause between
+    // two keys typed at a normal pace and well under what reads as the app not
+    // responding.
     private static let searchDebounce: Duration = .milliseconds(350)
 
     init(
         fetchCharacters: FetchCharactersUseCase,
-        // Inyectable para que los tests comprueben el freno sin dormir de verdad, igual
-        // que ya se hace con RetryingHTTPClient
+        // Injectable so tests can verify the brake without actually sleeping, same as
+        // RetryingHTTPClient already does
         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     ) {
         self.fetchCharacters = fetchCharacters
         self.sleep = sleep
     }
 
-    // MARK: - Búsqueda y filtros
+    // MARK: - Search and filters
 
-    // La vista bindea contra estos accesos y no contra `filter` directamente. Escribir
-    // en ellos no deja el criterio guardado para luego: dispara la recarga que toca, y
-    // cada uno sabe si lo suyo se teclea —y entonces hay que esperar a que el usuario
-    // pare— o se toca una vez.
+    // The view binds to these accessors, not to `filter` directly. Writing to them
+    // doesn't just save the criteria for later — it triggers the right reload, and
+    // each one knows whether its value is typed (so it waits for the user to stop) or
+    // set in one tap.
     var searchText: String {
         get { filter.name }
         set {
             let previous = filter.trimmedName
             filter.name = newValue
-            // Añadir un espacio al final no es buscar otra cosa. Sin esta comparación,
-            // la barra de búsqueda de iOS —que recorta y vuelve a escribir el texto al
-            // perder el foco— acabaría repitiendo la misma petición.
+            // Adding a trailing space isn't searching for something else. Without
+            // this comparison, iOS's search bar — which trims and rewrites the text
+            // on losing focus — would end up repeating the same request.
             guard filter.trimmedName != previous else { return }
             reload(afterTyping: true)
         }
@@ -142,8 +141,8 @@ final class CharacterListViewModel {
         }
     }
 
-    // Estos dos se eligen de una lista, no se teclean: no hay ninguna tecla siguiente
-    // que esperar, así que la petición sale ya
+    // These two are picked from a list, not typed: there's no next keystroke to wait
+    // for, so the request fires immediately
     var statusFilter: Character.Status? {
         get { filter.status }
         set {
@@ -162,22 +161,22 @@ final class CharacterListViewModel {
         }
     }
 
-    // Los filtros de la hoja: estado, género y especie. La búsqueda va aparte a propósito
-    // aunque para el dominio sea un criterio más: tiene su propio control —la barra— con
-    // su propia forma de borrarse. Contarla aquí encendía el icono de filtros al teclear
-    // sin haber tocado un filtro, y el "Clear" de la hoja borraba un texto que no está
-    // en la hoja.
+    // Sheet filters: status, gender, and species. Search is deliberately separate,
+    // even though the domain treats it as just another criterion — it has its own
+    // control, the search bar, with its own way to clear. Counting it here would
+    // light up the filters icon while typing without touching a filter, and the
+    // sheet's "Clear" would erase text that isn't on the sheet.
     var hasActiveFilters: Bool {
         filter.status != nil || filter.gender != nil || !filter.trimmedSpecies.isEmpty
     }
 
     var hasSearchText: Bool { !filter.trimmedName.isEmpty }
 
-    // Si la lista está acotada por algo, sea la búsqueda o los filtros. Es lo que separa
-    // "no hay nada" de "no hay nada que encaje", que se cuentan distinto.
+    // Whether the list is narrowed by anything, search or filters. This is what
+    // separates "there's nothing" from "nothing matches", which read differently.
     var isNarrowed: Bool { !filter.isEmpty }
 
-    // Lo que hace el "Clear" de la hoja: solo lo que está en la hoja
+    // What the sheet's "Clear" does: only what's on the sheet
     func clearFilters() {
         guard hasActiveFilters else { return }
         filter.status = nil
@@ -186,24 +185,25 @@ final class CharacterListViewModel {
         reload(afterTyping: false)
     }
 
-    // Lo que ofrece la pantalla vacía: quitar todo lo que acota, la búsqueda incluida
+    // What the empty screen offers: clear everything narrowing the list, search included
     func clearSearchAndFilters() {
         guard isNarrowed else { return }
         filter = .empty
         reload(afterTyping: false)
     }
 
-    // Un cambio de criterio no es una página más: es otra lista. Se tira lo cargado, se
-    // vuelve a la página uno y se cancela lo que hubiera en vuelo, porque una respuesta
-    // de la búsqueda anterior que llegue tarde no puede acabar pintada bajo un filtro
-    // que ya no es el que está puesto.
+    // A criteria change isn't one more page — it's a different list. Discards what's
+    // loaded, resets to page one, and cancels anything in flight, because a late
+    // response from the previous search can't end up rendered under a filter that's
+    // no longer set.
     //
-    // Pero se tira cuando toca pedir, no al teclear: mientras dura la espera la lista de
-    // antes sigue en pantalla, y si al final de la espera el criterio ha vuelto a ser el
-    // que ya está pintado —una letra que se escribe y se borra, una búsqueda que se
-    // cancela— no hay nada que recargar y todo se queda como está. Una página que la
-    // lista vieja pida en ese rato no hace daño: si el criterio ha cambiado, aterriza
-    // sobre otro filtro y se descarta; si ha vuelto a ser el mismo, es una página buena.
+    // But it discards only when it's time to request, not on every keystroke: the
+    // previous list stays on screen through the debounce, and if the criteria end up
+    // back where they were rendered — a letter typed then deleted, a search
+    // cancelled — there's nothing to reload and everything stays put. A page the old
+    // list requests during that window is harmless: if the criteria changed, it lands
+    // on a different filter and gets discarded; if they're back to the same, it's a
+    // valid page.
     private func reload(afterTyping: Bool) {
         searchTask?.cancel()
 
@@ -212,8 +212,8 @@ final class CharacterListViewModel {
 
             if afterTyping {
                 await sleep(Self.searchDebounce)
-                // Si mientras se esperaba ha llegado otra tecla, esta búsqueda ya no
-                // vale: la ha reemplazado la siguiente y aquí no se pide nada
+                // If another keystroke arrived while waiting, this search is stale —
+                // the next one replaced it, and nothing gets requested here
                 guard !Task.isCancelled else { return }
             }
 
@@ -223,15 +223,15 @@ final class CharacterListViewModel {
             pagingTask = nil
             isLoadingNextPage = false
             nextPageError = nil
-            // La lista de la que avisaba se va con el esqueleto: el aviso también
+            // The list it was warning about goes away with the skeleton: so does the notice
             refreshFailure = nil
             lastPage = nil
             await loadFirstPage(showingPlaceholder: true)
         }
     }
 
-    // Si lo que hay en pantalla —lista o vacío, que las dos son un resultado— ya es la
-    // respuesta a este criterio
+    // Whether what's on screen — list or empty, both are valid results — is already
+    // the answer to this criteria
     private func isShowingList(for filter: CharacterFilter) -> Bool {
         guard filter.normalized == loadedFilter else { return false }
         switch state {
@@ -240,32 +240,33 @@ final class CharacterListViewModel {
         }
     }
 
-    // MARK: - Pantalla
+    // MARK: - Screen
 
-    // La llama el .task de la vista. Solo carga la primera vez: .task se vuelve a
-    // disparar cada vez que la vista aparece, y volver del detalle no puede significar
-    // tirar la lista y las páginas que ya costaron su scroll.
+    // Called by the view's `.task`. Only loads the first time: `.task` re-fires every
+    // time the view appears, and returning from the detail screen can't mean
+    // discarding the list and the pages that already cost their scroll.
     func onAppear() async {
         guard case .idle = state else { return }
         await loadFirstPage(showingPlaceholder: true)
     }
 
-    // Reintentar desde la pantalla de error es volver a empezar la lista con el mismo
-    // criterio, y por eso pasa por el mismo sitio que un cambio de filtro: la tarea la
-    // crea y la posee el view model, igual que las demás, en vez de un Task suelto en el
-    // botón que nadie podría cancelar
+    // Retrying from the error screen means restarting the list with the same
+    // criteria, so it goes through the same path as a filter change: the view model
+    // creates and owns the task, like the others, instead of a loose Task on the
+    // button that nothing could cancel
     func retry() {
         reload(afterTyping: false)
     }
 
-    // Pull to refresh. No pone .loading porque el propio control de refresco ya es el
-    // indicador; enseñar además los esqueletos sería tapar la lista que el usuario
-    // tiene delante mientras tira de ella.
+    // Pull to refresh. Doesn't set `.loading` because the refresh control itself is
+    // already the indicator; also showing the skeletons would cover the list the
+    // user has in front of them while pulling it.
     //
-    // Y pide la página fresca a propósito: es la única carga que lo hace. La API sirve
-    // las páginas con noventa días de caducidad, así que sin decirlo la primera página
-    // saldría de la caché de red igual que la primera vez y el gesto no traería nada.
-    // Refrescar es preguntarle al servidor si ha cambiado, aunque cueste una ida y vuelta.
+    // Deliberately requests a fresh page: the only load that does. The API serves
+    // pages with a 90-day expiry, so without asking for fresh data, the first page
+    // would come straight from the network cache just like the first time and the
+    // gesture would bring back nothing. Refreshing means asking the server if
+    // anything changed, even at the cost of a round trip.
     func refresh() async {
         searchTask?.cancel()
         searchTask = nil
@@ -276,9 +277,9 @@ final class CharacterListViewModel {
         await loadFirstPage(showingPlaceholder: false, freshness: .fresh)
     }
 
-    // Lo llama el aviso de refresco fallido cuando el usuario lo toca o cuando se le
-    // acaba el tiempo. Es un método y no un binding sobre `refreshFailure` para que la
-    // única forma de ponerlo siga siendo que un refresh falle de verdad.
+    // Called by the refresh-failure notice when the user taps it or its time runs
+    // out. A method, not a binding over `refreshFailure`, so the only way to set it
+    // stays a refresh actually failing.
     func dismissRefreshFailure() {
         refreshFailure = nil
     }
@@ -286,15 +287,15 @@ final class CharacterListViewModel {
     private func loadFirstPage(showingPlaceholder: Bool, freshness: Freshness = .acceptCached) async {
         if showingPlaceholder { state = .loading }
 
-        // El filtro se lee aquí y se lleva hasta el final: si cambia mientras la
-        // petición está en vuelo, lo que llegue se compara contra el que se pidió y no
-        // contra el que haya puesto ahora.
+        // The filter is read here and carried through to the end: if it changes
+        // while the request is in flight, what arrives is compared against what was
+        // requested, not against whatever is set now.
         //
-        // La comparación va por `normalized` porque tiene que usar el mismo criterio con
-        // el que se decide recargar: escribir un espacio al final no dispara una petición
-        // nueva, así que tampoco puede invalidar la que ya viene de camino. Comparando
-        // los campos crudos, ese espacio tiraba una respuesta buena y dejaba la pantalla
-        // en .loading sin nadie que la sacara de ahí.
+        // Compared via `normalized` because it has to use the same criteria that
+        // decides whether to reload: a trailing space doesn't trigger a new request,
+        // so it can't invalidate the one already in flight either. Comparing raw
+        // fields, that space would discard a good response and leave the screen
+        // stuck in `.loading` with nothing to pull it out.
         let requested = filter
 
         do {
@@ -306,20 +307,21 @@ final class CharacterListViewModel {
             loadedIDs = Set(page.items.map(\.id))
             loadedFilter = requested.normalized
             nextPageError = nil
-            // Han llegado datos, así que lo que hay delante ya no está viejo
+            // Data arrived, so what's on screen is no longer stale
             refreshFailure = nil
             latestPageImageURLs = page.items.compactMap(\.imageURL)
             apply(page.items)
         } catch {
-            // Cancelar no es fallar: si el usuario se ha ido de la pantalla no hay
-            // nada que contarle.
+            // Cancelling isn't failing: if the user has left the screen there's
+            // nothing to tell them.
             guard error != .cancelled, requested.normalized == filter.normalized else { return }
 
-            // Un refresh que falla no puede dejar sin lista al que ya la estaba
-            // mirando: se conserva lo que hay y el error no ocupa la pantalla. Lo que
-            // sí se hace es avisar, porque una lista que se queda igual después de tirar
-            // de ella parece fresca sin serlo. Es la única carga que puede llegar aquí
-            // con una lista delante: las demás la han cambiado antes por el esqueleto.
+            // A failed refresh can't leave the person already viewing the list
+            // without one: what's there is kept and the error doesn't take over the
+            // screen. What it does do is warn, because a list that stays unchanged
+            // after being pulled looks fresh without being it. This is the only load
+            // that can reach this point with a list still on screen — the others
+            // already swapped it for the skeleton.
             guard state.value == nil else {
                 refreshFailure = error
                 return
@@ -328,29 +330,29 @@ final class CharacterListViewModel {
         }
     }
 
-    // MARK: - Paginación
+    // MARK: - Pagination
 
-    // El punto de entrada del scroll infinito, que llama el .onAppear de una celda.
-    // Es síncrono a propósito: así la tarea la crea y la posee el view model, que es
-    // quien sabe cancelarla cuando llega un refresh. Si la creara la vista con un Task
-    // suelto, nadie tendría forma de pararla.
+    // The infinite-scroll entry point, called by a cell's `.onAppear`. Deliberately
+    // synchronous: so the view model creates and owns the task, and it's the one
+    // that knows to cancel it when a refresh arrives. If the view created it with a
+    // loose Task, nothing could stop it.
     func loadNextPageIfNeeded(after character: Character) {
         guard prefetchTriggerIDs.contains(character.id) else { return }
         loadNextPage()
     }
 
-    // Después de un fallo hace falta pedirlo a mano. Si no, las celdas del final
-    // siguen apareciendo, vuelven a disparar la carga y el mismo error se reintenta en
-    // bucle contra un servidor que ya ha dicho que no.
+    // After a failure it must be requested manually. Otherwise the trailing cells
+    // keep appearing, keep re-triggering the load, and the same error retries in a
+    // loop against a server that already said no.
     func retryNextPage() {
         nextPageError = nil
         loadNextPage()
     }
 
     private func loadNextPage() {
-        // La comprobación y el flag van pegados y son síncronos: entre mirar y marcar
-        // no hay ni un await, así que dos celdas que aparecen en el mismo ciclo de
-        // layout no pueden colar dos peticiones de la misma página.
+        // The check and the flag are adjacent and synchronous: no `await` between
+        // checking and setting, so two cells appearing in the same layout pass can't
+        // sneak in two requests for the same page.
         guard !isLoadingNextPage,
               nextPageError == nil,
               let nextPage = lastPage?.nextPage
@@ -364,11 +366,11 @@ final class CharacterListViewModel {
 
     private func appendPage(_ page: Int) async {
         defer {
-            // Solo si esta sigue siendo la carga en curso. A una que se canceló —por un
-            // refresh o un cambio de criterio— ya la dio de baja quien la canceló, y para
-            // entonces puede haber otra página en vuelo en su lugar: apagar aquí el
-            // indicador sería apagar el de esa otra, y dejar que una celda colara una
-            // segunda petición de la misma página.
+            // Only if this is still the current load. One that got cancelled — by a
+            // refresh or a criteria change — was already retired by whoever
+            // cancelled it, and by then another page may be in flight in its place:
+            // turning off the indicator here would turn off that other one's, and
+            // let a cell sneak in a second request for the same page.
             if !Task.isCancelled {
                 isLoadingNextPage = false
                 pagingTask = nil
@@ -377,34 +379,33 @@ final class CharacterListViewModel {
 
         let requested = filter
 
-        // El freno va aquí dentro y no en la guarda de arriba a propósito: si se
-        // rechazara la petición en vez de retrasarla, no habría quien la volviera a
-        // pedir. El .onAppear de una celda se dispara una sola vez, así que rechazar es
-        // perder la página. Además, mientras se espera, isLoadingNextPage sigue puesto:
-        // el usuario ve el indicador al final de la lista y el resto de celdas no puede
-        // colar otra petición.
+        // The brake lives here, not in the guard above, on purpose: rejecting the
+        // request instead of delaying it would leave nobody to ask again. A cell's
+        // `.onAppear` fires only once, so rejecting means losing the page. Also,
+        // while waiting, `isLoadingNextPage` stays set: the user sees the indicator
+        // at the list's end, and no other cell can sneak in another request.
         await waitOutTheGapBetweenPages()
         guard !Task.isCancelled else { return }
 
         do {
             let result = try await fetchCharacters.execute(page: page, filter: requested)
-            // Además del filtro, se comprueba que esta siga siendo la página que toca.
-            // Un refresh conserva la lista mientras trae la primera página, así que sus
-            // celdas del final siguen en pantalla y pueden pedir la siguiente —la 4, si
-            // se iba por la 3— antes de que llegue la 1 nueva. Sin esta guarda esa página
-            // aterrizaba sobre la lista ya sustituida: página 1 seguida de la 4, con la 2
-            // y la 3 saltadas para siempre.
+            // Besides the filter, checks this is still the page that's due. A
+            // refresh keeps the list while fetching the first page, so its trailing
+            // cells stay on screen and can request the next one — page 4, if it was
+            // on page 3 — before the new page 1 arrives. Without this guard, that
+            // page would land on the already-replaced list: page 1 followed by 4,
+            // with 2 and 3 skipped forever.
             guard !Task.isCancelled,
                   requested.normalized == filter.normalized,
                   lastPage?.nextPage == page
             else { return }
             lastPageArrivedAt = .now
 
-            // La API pagina sobre una lista estable, así que en principio no repite.
-            // Pero si dos páginas trajeran el mismo personaje, ForEach acabaría con dos
-            // ids iguales y SwiftUI dejaría de saber qué celda es cuál: animaciones a
-            // la celda equivocada y estado que salta de una a otra. Filtrar cuesta un
-            // Set y lo cierra.
+            // The API paginates over a stable list, so it shouldn't repeat in
+            // principle. But if two pages did bring the same character, ForEach
+            // would end up with duplicate ids and SwiftUI would lose track of which
+            // cell is which: animations landing on the wrong cell, state jumping
+            // between them. Filtering costs one Set and closes it off.
             let fresh = result.items.filter { loadedIDs.insert($0.id).inserted }
             lastPage = result
             latestPageImageURLs = fresh.compactMap(\.imageURL)

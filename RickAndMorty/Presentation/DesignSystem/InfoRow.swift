@@ -1,26 +1,26 @@
 import SwiftUI
 
-// Una fila de dato: etiqueta a la izquierda, valor a la derecha.
-//
-// Con `ViewThatFits` porque en cuanto se sube el tamaño de letra «Location» y «Citadel of
-// Ricks» dejan de caber en la misma línea; antes que recortar el valor, la fila se parte
-// en dos. Es lo que hace que la pantalla siga leyéndose con tamaños de accesibilidad.
-//
-// Vive en el sistema de diseño y no dentro de la ficha porque es la pieza que necesita
-// cualquier pantalla que enseñe datos de algo: la siguiente —una localización, un
-// episodio— se monta con esto y no vuelve a resolver el mismo problema de layout.
+/// A data row: label on the left, value on the right.
+///
+/// Uses `ViewThatFits` because once type size grows, "Location" and "Citadel of Ricks"
+/// no longer fit on one line; rather than truncate the value, the row splits into two.
+/// That's what keeps the screen readable at accessibility sizes.
+///
+/// Lives in the design system, not the detail screen, because any screen showing an
+/// item's data needs this piece: the next one — a location, an episode — is built on
+/// this instead of re-solving the same layout problem.
 struct InfoRow: View {
     let label: String
     let value: String
     let systemImage: String
-    // El separador va dentro de la fila y no entre filas en el padre porque su sangría
-    // depende del tamaño del icono, que solo la fila conoce.
+    // Separator lives inside the row, not between rows in the parent, because its
+    // indent depends on the icon size, which only the row knows.
     var showsDivider = true
 
-    // La misma base y el mismo estilo de referencia que usa `IconTile` para su caja: un
-    // `@ScaledMetric` solo vive dentro de la vista que lo declara, así que la fila declara
-    // el suyo para sangrar el separador y la variante apilada. Al partir de lo mismo,
-    // escalan a la vez.
+    // Same base and reference style `IconTile` uses for its box: `@ScaledMetric` only
+    // lives within the view that declares it, so the row declares its own to indent the
+    // separator and the stacked variant. Starting from the same value, they scale
+    // together.
     @ScaledMetric(relativeTo: .subheadline) private var iconSide: CGFloat = IconTile.baseSide
 
     var body: some View {
@@ -35,9 +35,9 @@ struct InfoRow: View {
 
                 verticalLayout
             }
-            // A todo el ancho y pegada a la izquierda: la variante vertical es más
-            // estrecha que la fila, y sin esto el contenedor la centraba y los iconos
-            // quedaban descolgados de la fila de arriba.
+            // Full width, left-aligned: the vertical variant is narrower than the row,
+            // and without this the container centered it, leaving icons misaligned
+            // with the row above.
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }

@@ -1,21 +1,19 @@
 import SwiftUI
 
-// Las dos superficies de la app: la tarjeta y el chip.
-//
-// Son modificadores y no vistas envolventes a propósito. Un `CardView { … }` obliga a
-// meter el contenido dentro de otro contenedor y cambia el árbol de vistas —justo lo que
-// no interesa en una celda que se compara con `.equatable()` ochocientas veces—, mientras
-// que un modificador se aplica al final, se lee en el orden en que se pinta y no añade
-// una capa de layout.
+/// The app's two surfaces: the card and the chip.
+///
+/// These are modifiers, not wrapping views, on purpose. A `CardView { … }` would force
+/// content into another container and change the view tree — exactly what you don't want
+/// in a cell compared with `.equatable()` hundreds of times — while a modifier applies at
+/// the end, reads in paint order, and adds no layout layer.
 extension View {
-    // El fondo de todo lo que es una superficie de contenido: la celda del listado, el
-    // bloque de datos de la ficha, la lista de episodios, un error en línea.
+    // Background for any content surface: list cell, detail info block, episode list,
+    // inline error.
     //
-    // El recorte no es opcional ni sobra donde no hay nada que recortar: el fondo
-    // redondeado no recorta por sí solo lo que lleva encima, así que sin él la imagen de
-    // una celda —que es un rectángulo— asoma con las esquinas cuadradas por encima de las
-    // redondeadas del fondo, y la celda acaba con el borde de arriba distinto al de
-    // abajo. Donde no hay nada que se salga, recortar no cuesta nada.
+    // The clip isn't optional here — a rounded background doesn't clip what sits on top
+    // of it, so without it a cell's (rectangular) image pokes square corners past the
+    // rounded background, leaving a mismatched top and bottom edge. Where nothing
+    // overflows, clipping costs nothing.
     func cardSurface(cornerRadius: CGFloat = Theme.Radius.card) -> some View {
         self
             .background(.background.secondary, in: .rect(cornerRadius: cornerRadius))
@@ -23,32 +21,30 @@ extension View {
             .contentShape(.rect(cornerRadius: cornerRadius))
     }
 
-    // El relleno tintado que llevan los chips: el badge de estado, el recuento de
-    // episodios, el código de un episodio.
+    // Tinted fill used by chips: status badge, episode count, an episode's code.
     //
-    // El color del tinte se pasa porque no siempre es el de acento: el badge de estado se
-    // tiñe del color de su estado —verde, rojo o gris—, que es justo el dato que está
-    // dando. La forma también, porque una píldora y un rectángulo redondeado no dicen lo
-    // mismo: la píldora es una etiqueta, el rectángulo es una pieza de la fila.
+    // Tint color is a parameter because it isn't always the accent: the status badge is
+    // tinted with its own status color — green, red, or gray — which is exactly the data
+    // it's conveying. Shape too, since a pill and a rounded rect say different things:
+    // pill is a label, rect is a row piece.
     //
-    // Lo que no se pasa nunca es la opacidad ni el texto en color: el contenido de un chip
-    // va siempre en color primario. Un texto verde sobre su propio tinte se queda en 1,9:1
-    // en modo claro, muy por debajo del 4,5:1 que pide la WCAG, y el color ya lo está
-    // dando el fondo.
+    // Never parameterized: opacity or colored text — chip content always uses the
+    // primary color. Green text on its own tint drops to 1.9:1 in light mode, far below
+    // WCAG's 4.5:1, and the fill already carries the color.
     func tintedChip(_ tint: Color = Theme.Tint.accent, in shape: some Shape, opaque: Bool = false) -> some View {
         self
-            // El color primario lo pone el chip y no cada sitio que lo usa: es una regla
-            // de contraste, no una preferencia, y si se deja a criterio de quien llama
-            // acaba habiendo un chip con el texto en su propio tinte. Va por dentro del
-            // relleno, así que gana a cualquier `foregroundStyle` de fuera.
+            // Primary color is set by the chip, not each call site: it's a contrast
+            // rule, not a preference — left to callers it eventually produces a chip
+            // with text in its own tint. Applied inside the fill, so it wins over any
+            // external `foregroundStyle`.
             .foregroundStyle(.primary)
             .padding(.horizontal, Theme.Spacing.medium)
             .padding(.vertical, Theme.Spacing.xSmall)
             .background {
-                // `opaque` es para los chips que flotan sobre una imagen, que es donde un
-                // tinte al 12% dejaría ver la foto por debajo y el chip perdería el
-                // contraste con su propio texto. Debajo va el fondo de la app, no un
-                // blanco: en modo oscuro el blanco sería un foco.
+                // `opaque` is for chips floating over an image, where a 12% tint would
+                // let the photo show through and the chip would lose contrast with its
+                // own text. Backed by the app background, not white — white would be a
+                // spotlight in dark mode.
                 if opaque {
                     shape.fill(.background)
                 }
