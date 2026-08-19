@@ -3,31 +3,25 @@ import CryptoKit
 import Foundation
 import ImageIO
 
-// Caché de imágenes de dos niveles con deduplicación de descargas.
-//
-// Los tres gastos que se cargan un scroll, en orden de impacto:
-//
-// 1. Decodificar. Un avatar de la API son 300x300 px comprimidos en unos 25 KB, pero
-//    el bitmap que sale de decodificarlo ocupa 360 KB, y multiplicado por las celdas
-//    que caben en pantalla es lo que acaba en un aviso de memoria. Aquí se decodifica
-//    a la medida de la celda y en el momento, no al ir a pintar: el bitmap nunca es
-//    mayor que lo que se ve, así que el techo lo pone el layout y no lo que decida
-//    mandar el servidor. Con los 300x300 de hoy y celdas de 150 pt para arriba el
-//    recorte no llega a aplicarse —ImageIO no amplía—; lo que sí se nota en cada
-//    celda es forzar la decodificación aquí, fuera del hilo principal.
-// 2. Repetir trabajo. Volver hacia atrás en el scroll no puede costar otra descarga
-//    ni otra decodificación: memoria primero, disco después y la red como último
-//    recurso.
-// 3. Pedir lo mismo dos veces a la vez. En un grid es lo normal, no la excepción, y
-//    dos peticiones para la misma URL son dos conexiones y dos decodificaciones para
-//    acabar con el mismo bitmap.
-//
-// Es un actor y no una clase con locks porque el estado que protege —el diccionario
-// de descargas en vuelo— se toca desde tantas tareas como celdas haya en pantalla, y
-// el aislamiento lo resuelve sin un solo candado a mano.
+/// A two-level image cache with download deduplication. The three costs that break a
+/// scroll, by impact:
+/// 1. Decoding. An avatar is ~25 KB compressed at 300x300 px, but the decoded bitmap
+///    runs 360 KB — multiplied across on-screen cells, that's what triggers a memory
+///    warning. Decoded here at cell size, on the spot, not at paint time: the bitmap
+///    is never bigger than what's shown, so layout sets the ceiling, not the server.
+///    Forcing decode off the main thread is what actually matters per cell.
+/// 2. Repeated work. Scrolling back can't cost another download or decode: memory
+///    first, disk second, network as a last resort.
+/// 3. Asking for the same thing twice at once. Normal in a grid, not an edge case —
+///    two requests for the same URL would be two connections and two decodes for the
+///    same bitmap.
+///
+/// An actor, not a class with locks, because the state it guards — the in-flight
+/// downloads dictionary — is touched by as many tasks as there are cells on screen,
+/// and isolation handles that without a single hand-rolled lock.
 actor ImageCache {
-    // De dónde ha salido la imagen. Lo devuelve porque la vista lo necesita para
-    // decidir si funde o no: lo que ya estaba en memoria tiene que aparecer de golpe.
+    // Where the image came from. Returned because the view needs it to decide whether
+    // to fade in: what was already in memory has to appear instantly.
     enum Origin: Sendable {
         case memory
         case disk
@@ -39,7 +33,7 @@ actor ImageCache {
         let origin: Origin
     }
 
-    // Se inyecta para que los tests no toquen la red. En producción es Self.download.
+    // Injected so tests don't touch the network. Production uses Self.download.
     typealias DataLoader = @Sendable (URL) async throws(AppError) -> Data
 
     static let shared = ImageCache()
@@ -49,22 +43,21 @@ actor ImageCache {
     private let settleDelay: Duration
     private let memory = NSCache<NSString, Entry>()
 
-    // Todo lo que vaya a la red pasa por aquí: pocas a la vez y la última pedida
-    // primero. Es lo que hace que al bajar rápido se pinte lo que se está mirando y no
-    // la cola de lo que ya se dejó atrás.
+    // Everything headed to the network passes through here: few at once, last
+    // requested first — what paints what's on screen instead of the queue of what's
+    // already been scrolled past.
     private let queue: DownloadQueue
 
-    // Descargas en vuelo, por URL. Si dos celdas piden la misma imagen a la vez, la
-    // segunda encuentra aquí la tarea de la primera y se queda esperándola en vez de
-    // abrir otra conexión. La clave es la URL y no la URL más el tamaño a propósito:
-    // lo que no se puede duplicar es la descarga, y los bytes descargados sirven para
-    // cualquier tamaño.
+    // In-flight downloads, by URL. If two cells ask for the same image at once, the
+    // second finds the first's task here and waits on it instead of opening another
+    // connection. Keyed by URL alone, not URL plus size, on purpose: it's the download
+    // that can't be duplicated, and the downloaded bytes serve any size.
     private var inFlight: [URL: Download] = [:]
     private var lastWaiterToken = 0
 
-    // internal para que los tests puedan comprobar que una descarga que ya no
-    // interesa a nadie desaparece de verdad, que una pausa retiene de verdad, y que
-    // una segunda celda se ha enganchado a una descarga antes de cancelar la primera
+    // internal so tests can check that a download nobody wants anymore truly
+    // disappears, that a pause truly holds, and that a second cell joined a download
+    // before the first was cancelled
     var inFlightCount: Int { inFlight.count }
     var waitingDownloadCount: Int {
         get async { await queue.waitingCount }
@@ -73,41 +66,40 @@ actor ImageCache {
 
     init(
         directory: URL = ImageCache.defaultDirectory,
-        // 50 MB de bitmaps. Un avatar de los de hoy decodificado son 360 KB, así que
-        // caben unos 145: más de lo que ocupan cuatro pantallas de scroll, que es la
-        // distancia a la que un usuario vuelve hacia atrás.
+        // 50 MB of bitmaps. Today's decoded avatar is 360 KB, so that's room for
+        // ~145 — more than four screens of scroll, which is about how far back a
+        // user tends to go.
         memoryLimit: Int = 50 * 1024 * 1024,
-        // Cuatro a la vez. Más no llega antes —el cuello está en las conexiones y en el
-        // ancho de banda, no en cuántas peticiones hayamos soltado— y sí deja al
-        // servidor recibiendo ráfagas que se acaban traduciendo en 5xx, que es lo que
-        // luego tumba la petición de la página siguiente.
+        // Four at once. More wouldn't arrive sooner — the bottleneck is connections
+        // and bandwidth, not how many requests were fired — and would leave the
+        // server eating bursts that turn into 5xx, which then takes down the next
+        // page's request too.
         maxConcurrentDownloads: Int = 4,
-        // Lo que tiene que llevar una celda en pantalla antes de que se gaste una
-        // petición por ella. En un vistazo rápido las celdas asoman y se van en
-        // decenas de milisegundos: pedir esas imágenes es gastar peticiones en lo que
-        // nadie ha llegado a ver, y una ráfaga así es la que hace que la API conteste
-        // 429 y se lleve por delante también la carga de la página siguiente.
-        // No retrasa nada de lo que ya esté en memoria o en disco: eso ni pasa por aquí.
+        // How long a cell has to sit on screen before it costs a request. In a quick
+        // glance cells appear and vanish in tens of milliseconds; requesting those
+        // images burns requests on what nobody saw, and that kind of burst is what
+        // earns a 429 that also takes down the next page's load. Doesn't delay
+        // anything already in memory or on disk — that never reaches this at all.
         settleDelay: Duration = .milliseconds(120),
-        // Se inyecta para que los tests no toquen la red; sin él, la descarga de verdad
-        // con sus reintentos. Va como opcional y no como valor por defecto para que el de
-        // producción —dos estáticos del tipo compuestos— se lea aquí y no en la firma.
+        // Injected so tests don't touch the network; without it, the real download
+        // with retries. An optional, not a default value, so the production one —
+        // two static members composed together — reads here, not in the signature.
         loader: DataLoader? = nil
     ) {
         self.directory = directory
         self.loader = loader ?? Self.retrying(Self.download)
         self.settleDelay = settleDelay
         self.queue = DownloadQueue(limit: maxConcurrentDownloads)
-        // NSCache ya se vacía sola cuando el sistema avisa de presión de memoria, así
-        // que el límite es un techo, no la única defensa.
+        // NSCache already empties itself under memory pressure, so this limit is a
+        // ceiling, not the only defense.
         memory.totalCostLimit = memoryLimit
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
-    // Devuelve la imagen ya decodificada al tamaño en el que se va a pintar.
-    // size va en puntos y scale es la escala de la pantalla. La conversión a píxeles
-    // se hace aquí y no en la vista porque el tamaño forma parte de la clave de
-    // memoria: la misma URL a 110 pt y a 300 pt son dos bitmaps distintos.
+    // Returns the image already decoded at the size it'll be painted. size is in
+    // points, scale is the screen's; converted to pixels here, not in the view,
+    // because size is part of the memory key — the same URL at 110pt and 300pt are
+    // two different bitmaps.
     func image(for url: URL, size: CGSize, scale: CGFloat) async throws(AppError) -> LoadedImage {
         let pixelSize = Self.pixelSize(for: size, scale: scale)
         let key = Self.memoryKey(url: url, pixelSize: pixelSize)
@@ -118,19 +110,19 @@ actor ImageCache {
 
         let fetched = try await fetch(url, priority: .visible)
 
-        // Antes de decodificar, que es la parte cara. Si la celda ya se ha ido de la
-        // pantalla no tiene sentido gastar CPU y memoria en un bitmap que nadie va a
-        // ver; los bytes ya están guardados en disco, así que no se pierde el trabajo
-        // que sí valía.
+        // Before decoding, the expensive part — if the cell has already scrolled off,
+        // there's no point spending CPU and memory on a bitmap nobody will see. The
+        // bytes are already on disk, so the work that did matter isn't lost.
         if Task.isCancelled { throw .cancelled }
 
         guard let image = await Self.downsample(fetched.data, to: pixelSize) else {
-            // Unos bytes que no son una imagen no pueden quedarse en disco: la descarga
-            // los guarda antes de saber si decodifican, y si se quedaran, cada visita
-            // siguiente los leería de ahí, fallaría igual y no volvería a bajarlos nunca.
-            // Es lo que hace un portal cautivo —el wifi de un hotel que contesta 200 con
-            // su página de acceso— y sin esto envenena la caché hasta que el sistema la
-            // vacíe. Borrando, el siguiente intento vuelve a la red.
+            // Bytes that aren't an image can't stay on disk: the download saves them
+            // before knowing if they decode, and if left there every future visit
+            // would read the same broken bytes, fail the same way, and never
+            // re-download. This is what a captive portal does — a hotel wifi
+            // answering 200 with its login page — and left alone it poisons the
+            // cache until the system evicts it. Deleting sends the next attempt back
+            // to the network.
             await Self.removeFile(at: fileURL(for: url))
             throw .decoding
         }
@@ -139,34 +131,34 @@ actor ImageCache {
         return LoadedImage(image: image, origin: fetched.origin)
     }
 
-    // Deja en disco las imágenes de una página que acaba de llegar y aún no se ve, para
-    // que cuando el usuario baje hasta ella las celdas aparezcan ya con su imagen en vez
-    // de con un hueco que se rellena. Es la sensación de una app que "ya lo tenía".
+    // Saves to disk the images of a page that just arrived and isn't visible yet, so
+    // when the user scrolls down to it the cells already have their image instead of
+    // a gap filling in — the feeling of an app that "already had it."
     //
-    // Va en secuencia a propósito: ocupa como mucho un hueco de los cuatro y gasta el
-    // cupo del servidor de uno en uno, así que nunca compite con lo que se está mirando.
-    // Y va por la misma `fetch` que las celdas, con prioridad baja: si una celda visible
-    // pide una imagen que ya se está calentando, se engancha a esa descarga; y si nadie
-    // más la esperaba, cancelar el calentamiento cancela la descarga con él.
+    // Sequential on purpose: takes at most one of the four slots and spends the
+    // server's quota one at a time, so it never competes with what's on screen. Goes
+    // through the same `fetch` as cells, at low priority: a visible cell requesting an
+    // image already warming joins that download, and if nobody else was waiting,
+    // cancelling the warm cancels the download with it.
     //
-    // Límite conocido: una celda visible que se enganche a un calentamiento que aún
-    // espera hueco al fondo de la cola espera detrás de las visibles que ya estaban
-    // encoladas. Como el calentamiento es secuencial, es como mucho una ronda de cuatro
-    // descargas, y no compensa una promoción de prioridad para eso.
+    // Known limit: a visible cell that joins a warm still waiting at the back of the
+    // queue waits behind the visible cells already queued ahead of it. Since warming
+    // is sequential, that's at most one round of four downloads, and doesn't justify a
+    // priority promotion for it.
     func warm(_ urls: [URL]) async {
         for url in urls {
             guard !Task.isCancelled else { return }
-            // Lo que ya está en disco no necesita ni la tarea: un stat es más barato que
-            // montar la descarga para descubrir que no hacía falta
+            // What's already on disk doesn't even need the task — a stat is cheaper
+            // than building the download just to find out it wasn't needed.
             guard !FileManager.default.fileExists(atPath: fileURL(for: url).path()) else { continue }
             _ = try? await fetch(url, priority: .prefetch)
         }
     }
 
-    // La vista lo pone mientras el scroll va lanzado y lo quita cuando para: durante un
-    // fling, cada petición que sale es cupo gastado en una celda que ya no está cuando
-    // llega. Lo que hay en memoria o en disco no pasa por la cola, así que sigue
-    // apareciendo; solo se retiene la salida a red.
+    // The view sets this while the scroll is flinging and clears it on stop: during a
+    // fling, every request that goes out is quota spent on a cell that's gone by the
+    // time it lands. What's in memory or on disk skips the queue and keeps appearing;
+    // only the network exit is held back.
     func setNetworkPaused(_ paused: Bool) async {
         await queue.setPaused(paused)
     }
@@ -178,16 +170,16 @@ actor ImageCache {
         let origin: Origin
     }
 
-    // La descarga y quiénes la están esperando.
-    // Llevar la cuenta de interesados no es contabilidad de más: es lo que permite
-    // cancelar. Sin ella, un scroll rápido deja cientos de peticiones vivas para
-    // celdas que ya no están en pantalla, y como URLSession abre seis conexiones por
-    // host, las celdas que sí se ven esperan detrás de imágenes que nadie va a mirar.
-    // El síntoma es un grid lleno de huecos grises que no se rellenan nunca.
+    // The download and who's waiting on it. Counting waiters isn't extra bookkeeping —
+    // it's what enables cancellation. Without it, a fast scroll leaves hundreds of live
+    // requests for cells no longer on screen, and since URLSession opens six
+    // connections per host, the cells still visible wait behind images nobody will
+    // ever look at. The symptom is a grid full of gray gaps that never fill in.
     private struct Download {
         let task: Task<Fetched, any Error>
-        // Tokens y no un contador: dar de baja un token que ya no está es un no-op, y
-        // así da igual que la baja llegue por el camino normal y por el de cancelación
+        // A set of tokens, not a counter: removing a token that's already gone is a
+        // no-op, so it doesn't matter whether it leaves via the normal path or
+        // cancellation.
         var waiters: Set<Int>
     }
 
@@ -196,14 +188,15 @@ actor ImageCache {
         defer { leaveDownload(for: url, token: token, cancelled: false) }
 
         do {
-            // withTaskCancellationHandler es lo que hace que cancelar la celda cancele
-            // la descarga: sin él, cancelar a quien espera no cancela lo esperado, y
-            // Task.value ni siquiera lanza. La petición seguiría en la cola.
+            // withTaskCancellationHandler is what makes cancelling the cell cancel
+            // the download: without it, cancelling a waiter doesn't cancel what it's
+            // waiting on, and Task.value wouldn't even throw — the request would keep
+            // sitting in the queue.
             return try await withTaskCancellationHandler {
                 try await task.value
             } onCancel: {
-                // onCancel es síncrono y está fuera del actor, así que la baja se da
-                // en un salto aparte
+                // onCancel is synchronous and outside the actor, so leaving happens
+                // in a separate hop.
                 Task { await self.leaveDownload(for: url, token: token, cancelled: true) }
             }
         } catch let error as AppError {
@@ -215,8 +208,8 @@ actor ImageCache {
         }
     }
 
-    // La prioridad es la de quien abre la descarga. Si ya estaba en vuelo, quien llega se
-    // engancha a ella tal cual: lo que no se puede duplicar es la petición.
+    // Priority is whoever opens the download's. If it was already in flight, whoever
+    // arrives just joins it — it's the request itself that can't be duplicated.
     private func joinDownload(
         for url: URL,
         priority: DownloadQueue.Priority
@@ -235,29 +228,29 @@ actor ImageCache {
         let queue = self.queue
         let settleDelay = self.settleDelay
         let task = Task<Fetched, any Error> {
-            // Disco antes que red. Leer un fichero local cuesta microsegundos y una
-            // petición decenas de milisegundos, aunque acabe en un 304.
+            // Disk before network. Reading a local file costs microseconds; a request
+            // costs tens of milliseconds even when it ends in a 304.
             if let stored = await Self.readFile(at: file) {
                 return Fetched(data: stored, origin: .disk)
             }
 
-            // La celda tiene que asentarse antes de que se gaste una petición por ella.
-            // Si el usuario ya ha pasado de largo, para cuando termine esta espera esta
-            // tarea estará cancelada y no se llega a pedir nada. Un precalentamiento no
-            // es una celda que pueda irse, así que no tiene nada que asentar.
+            // The cell has to settle before it costs a request. If the user's already
+            // scrolled past, this task will be cancelled by the time the wait ends and
+            // nothing gets requested. A prefetch isn't a cell that can leave, so it has
+            // nothing to settle.
             if priority == .visible {
                 try await Task.sleep(for: settleDelay)
             }
-            // El hueco solo se pide para ir a la red: un acierto de disco no compite
-            // por conexiones y no tiene por qué esperar a nadie
-            // La firma va escrita entera porque la inferencia de throws tipado dentro
-            // de un closure literal se queda en `any Error`
+            // The slot is only requested for the network trip — a disk hit doesn't
+            // compete for connections and shouldn't wait on anyone. The closure's full
+            // signature is spelled out because typed-throws inference inside a literal
+            // falls back to `any Error`.
             let data = try await queue.enqueue(priority: priority) { () async throws(AppError) -> Data in
                 try await loader(url)
             }
-            // Se guardan los bytes originales y no el bitmap reducido: así, si mañana
-            // la misma imagen hace falta a otro tamaño —una celda más ancha, un
-            // detalle— sale del disco en vez de la red.
+            // Saves the original bytes, not the downsampled bitmap: if the same image
+            // is needed at another size tomorrow — a wider cell, the detail screen —
+            // it comes from disk instead of the network.
             await Self.writeFile(data, to: file)
             return Fetched(data: data, origin: .network)
         }
@@ -266,9 +259,9 @@ actor ImageCache {
         return (task, token)
     }
 
-    // Si el que se va era el último y se va porque le han cancelado, la descarga se
-    // cancela con él: esa imagen ya no la va a ver nadie y la conexión hace falta para
-    // las celdas que siguen en pantalla.
+    // If the one leaving was the last, and leaves because it was cancelled, the
+    // download cancels with it: nobody's going to see that image, and the connection
+    // is needed for the cells still on screen.
     private func leaveDownload(for url: URL, token: Int, cancelled: Bool) {
         guard var download = inFlight[url], download.waiters.remove(token) != nil else { return }
 
@@ -281,38 +274,37 @@ actor ImageCache {
         if cancelled { download.task.cancel() }
     }
 
-    // @concurrent porque el proyecto compila con SWIFT_APPROACHABLE_CONCURRENCY: sin
-    // él una función nonisolated async se ejecutaría en el executor de quien llama,
-    // que aquí es el propio actor, y una lectura de disco dejaría en cola a todas las
-    // demás celdas. Con él sale al pool global y el actor queda libre.
+    // @concurrent because the project builds with SWIFT_APPROACHABLE_CONCURRENCY:
+    // without it a nonisolated async function runs on the caller's executor — the
+    // actor itself here — and a disk read would queue up every other cell behind it.
+    // With it, the work goes to the global pool and the actor stays free.
     @concurrent
     private static func readFile(at url: URL) async -> Data? {
-        // .mappedIfSafe: el fichero se mapea en vez de copiarse al heap, y ImageIO lee
-        // de ahí directamente
+        // .mappedIfSafe: the file is mapped instead of copied to the heap, and ImageIO
+        // reads straight from there.
         try? Data(contentsOf: url, options: .mappedIfSafe)
     }
 
     @concurrent
     private static func writeFile(_ data: Data, to url: URL) async {
-        // Si escribir falla —disco lleno, o el sistema ha vaciado Caches/ por debajo—
-        // no es motivo para no enseñar la imagen: se pierde el acierto de disco de la
-        // próxima vez y nada más.
+        // If writing fails — disk full, or the system emptied Caches/ underneath —
+        // that's no reason not to show the image: only next time's disk hit is lost.
         try? data.write(to: url, options: .atomic)
     }
 
     @concurrent
     private static func removeFile(at url: URL) async {
-        // Si no está, ya está hecho
+        // Not there means already done.
         try? FileManager.default.removeItem(at: url)
     }
 
-    // MARK: - Decodificación
+    // MARK: - Decoding
 
     @concurrent
     private static func downsample(_ data: Data, to pixelSize: CGSize) async -> CGImage? {
-        // kCGImageSourceShouldCache: false para que ImageIO no se guarde además la
-        // imagen a tamaño completo mientras fabrica la miniatura, que es justo lo que
-        // se quiere evitar
+        // kCGImageSourceShouldCache: false so ImageIO doesn't also keep the
+        // full-size image around while building the thumbnail — exactly what this
+        // is meant to avoid.
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
             return nil
@@ -320,14 +312,15 @@ actor ImageCache {
 
         let maxPixelSize = Int(max(pixelSize.width, pixelSize.height).rounded(.up))
         let options = [
-            // Genera la miniatura aunque el fichero no traiga una incrustada, que es
-            // el caso de los avatares de esta API
+            // Builds a thumbnail even when the file has no embedded one, which is
+            // the case for this API's avatars.
             kCGImageSourceCreateThumbnailFromImageAlways: true,
-            // Aplica la orientación EXIF al reducir, así lo que sale ya está derecho
+            // Applies EXIF orientation while downsampling, so the result is already
+            // upright.
             kCGImageSourceCreateThumbnailWithTransform: true,
-            // Fuerza la decodificación aquí y ahora. Sin esto ImageIO la deja para
-            // cuando haya que pintar, y eso pasa en el hilo principal justo durante el
-            // scroll: es la diferencia entre ir fino y dar un tirón por celda.
+            // Forces decoding right here, right now. Without this ImageIO defers to
+            // paint time, which lands on the main thread mid-scroll — the difference
+            // between smooth and a hitch per cell.
             kCGImageSourceShouldCacheImmediately: true,
             kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
         ] as [CFString: Any] as CFDictionary
@@ -335,10 +328,10 @@ actor ImageCache {
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options)
     }
 
-    // MARK: - Claves
+    // MARK: - Keys
 
-    // NSCache solo guarda objetos, así que la imagen viaja envuelta en una clase.
-    // No hace nada más: el coste se calcula fuera, al insertar.
+    // NSCache only stores objects, so the image travels wrapped in a class — nothing
+    // more; cost is computed elsewhere, on insert.
     private final class Entry {
         let image: CGImage
         init(_ image: CGImage) { self.image = image }
@@ -353,53 +346,53 @@ actor ImageCache {
     }
 
     private func fileURL(for url: URL) -> URL {
-        // SHA-256 de la URL: nombre de longitud fija, sin caracteres que el sistema de
-        // ficheros no admita y sin pasarse de los 255 bytes por componente, que es lo
-        // que pasaría percent-encodeando una URL larga.
+        // SHA-256 of the URL: a fixed-length name, no characters the filesystem
+        // would reject, and never over 255 bytes per component — which is what
+        // percent-encoding a long URL would risk.
         let digest = SHA256.hash(data: Data(url.absoluteString.utf8))
         let name = digest.map { String(format: "%02x", $0) }.joined()
         return directory.appending(path: name, directoryHint: .notDirectory)
     }
 
-    // Caches/ y no Documents/: son bytes que se pueden volver a descargar, así que ni
-    // se respaldan en iCloud ni tiene sentido que el sistema los conserve cuando le
-    // falte espacio.
-    //
-    // TODO: [Fuera de alcance · README §8] Poda de la caché de disco.
-    // Motivo: hoy el directorio crece sin límite y solo lo vacía el sistema cuando
-    // necesita sitio. Se deja así a sabiendas porque los 826 avatares de la API son unos
-    // 20 MB en el peor caso —cabe entero— y una poda LRU hecha con prisa borra justo lo
-    // que se está usando.
-    // Preparado: entraría como un `trim(to:)` en este actor, llamado al pasar la app a
-    // segundo plano, ordenando los ficheros por .contentAccessDateKey y borrando los más
-    // viejos hasta bajar del límite. La lectura y la escritura no cambian: ya pasan las
-    // dos por `fileURL(for:)`.
+    // Caches/, not Documents/: these bytes can always be re-downloaded, so they
+    // shouldn't be backed up to iCloud, and the system is free to reclaim them under
+    // storage pressure.
+    // TODO: [Out of scope · README §8] Disk cache pruning.
+    /*
+     Reason: the directory grows unbounded today, emptied only when the system needs
+     the space. Left this way on purpose — the API's 826 avatars are ~20 MB worst case
+     (fits entirely), and a rushed LRU prune risks deleting exactly what's in use.
+     Ready to plug in: would come in as a `trim(to:)` on this actor, called on entering
+     the background, sorting files by `.contentAccessDateKey` and deleting the oldest
+     until under the limit. Reads and writes wouldn't change — both already go through
+     `fileURL(for:)`.
+     */
     private static var defaultDirectory: URL {
         URL.cachesDirectory.appending(path: "ImageCache", directoryHint: .isDirectory)
     }
 
-    // MARK: - Descarga
+    // MARK: - Download
 
-    // El reintento se añade componiendo, igual que RetryingHTTPClient hace con el
-    // cliente HTTP: la descarga no sabe que se la reintenta y el reintento no sabe de
-    // dónde salen los bytes.
+    // Retrying is added by composing, the same way RetryingHTTPClient wraps the HTTP
+    // client: the download doesn't know it's being retried, and the retry doesn't
+    // know where the bytes come from.
     //
-    // Este es el reintento corto: el tropiezo de una petición —un 502 pasajero, un
-    // timeout— se repite aquí en cientos de milisegundos, y como la descarga está
-    // deduplicada, se repite una vez para todas las celdas que estuvieran esperándola.
-    // El mal rato largo, de segundos, lo cubre CachedAsyncImage mientras la celda siga
-    // en pantalla; las dos capas se reparten el tiempo en vez de solaparse.
+    // This is the short retry: one request's stumble — a passing 502, a timeout —
+    // repeats here within hundreds of milliseconds, and since the download is
+    // deduplicated, it repeats once for every cell waiting on it. The longer,
+    // multi-second bad stretch is covered by CachedAsyncImage as long as the cell
+    // stays on screen — the two layers split the time instead of overlapping.
     static func retrying(
         _ loader: @escaping DataLoader,
         policy: RetryPolicy = .default
     ) -> DataLoader {
-        // Las firmas van escritas enteras porque la inferencia de throws tipado dentro
-        // de un closure literal se queda en `any Error`
+        // Signatures spelled out in full because typed-throws inference inside a
+        // closure literal falls back to `any Error`.
         { (url: URL) async throws(AppError) -> Data in
-            // El 429 se queda fuera a propósito, y es la diferencia entre salir del
-            // agujero y cavarlo más hondo: de él se encarga el freno compartido de
-            // RateLimiter. Reintentarlo aquí sería que cada una de las imágenes en
-            // vuelo repitiera por su cuenta la ráfaga que nos ganó el límite.
+            // 429 is excluded on purpose — the difference between climbing out of the
+            // hole and digging it deeper. RateLimiter's shared brake handles that;
+            // retrying it here would mean every in-flight image repeating on its own
+            // the burst that earned the limit in the first place.
             try await policy.attempt(
                 shouldRetry: { $0.isRetryable && $0 != .rateLimited },
                 { () async throws(AppError) -> Data in try await loader(url) }
@@ -407,30 +400,28 @@ actor ImageCache {
         }
     }
 
-    // Descarga directa, sin pasar por HTTPClient: ahí lo que llega es JSON que hay que
-    // decodificar, y aquí lo que hace falta son los bytes tal cual. Todo lo demás —la
-    // ficha del limitador, la traza, el transporte y el código de estado— es el mismo
-    // URLSession.perform que usa el cliente HTTP, escrito una vez para los dos. Y el
-    // limitador es el mismo objeto que el del cliente HTTP: el cupo del servidor es uno
-    // para JSON e imágenes, así que el freno tiene que ser uno.
+    // A direct download, bypassing HTTPClient: that path decodes JSON, this one just
+    // needs raw bytes. Everything else — limiter token, logging, transport, status
+    // code — is the same URLSession.perform the HTTP client uses, written once for
+    // both. And the limiter is the same object as the HTTP client's: one server quota
+    // for JSON and images means one shared brake.
     //
-    // Solo se traza y se gasta ficha en lo que sale a la red de verdad. Lo que se
-    // resuelve en memoria o en disco no llega hasta aquí, y así el log dice qué se está
-    // pidiendo fuera y no cuántas celdas se han pintado. Como se llama desde dentro de la
-    // cola, el orden es hueco (LIFO) primero y ficha después: la prioridad se aplica al
-    // recurso escaso, que cuando el servidor aprieta es la ficha.
+    // Only what actually goes out to the network is logged and spends a token — what
+    // resolves from memory or disk never reaches here, so the log says what's being
+    // requested out, not how many cells got painted. Called from inside the queue, so
+    // the order is slot (LIFO) first, token second: priority applies to the scarce
+    // resource, which under server pressure is the token.
     private static func download(_ url: URL) async throws(AppError) -> Data {
-        // Petición explícita en vez de data(from:) —que monta esta misma por dentro—
-        // para poder trazarla
+        // An explicit request instead of data(from:) — which builds this same one
+        // internally — so it can be logged.
         try await imageSession.perform(URLRequest(url: url), through: .shared).data
     }
 
     private static let imageSession: URLSession = {
         let configuration = URLSessionConfiguration.default
-        // Sin URLCache: los bytes ya los guardamos nosotros en Caches/, y tener dos
-        // cachés de disco con lo mismo dentro es pagar el doble de espacio por nada.
-        // La de URLSession se queda para las respuestas JSON, que es donde el ETag de
-        // la API sí aporta.
+        // No URLCache: the bytes are already saved to Caches/ by hand, and two disk
+        // caches holding the same thing is paying twice for nothing. URLSession's
+        // cache stays reserved for JSON responses, where the API's ETag earns its keep.
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.timeoutIntervalForRequest = 15
@@ -439,8 +430,8 @@ actor ImageCache {
 }
 
 private extension CGImage {
-    // Lo que ocupa el bitmap ya decodificado, que es lo que de verdad pesa en memoria.
-    // El tamaño del fichero comprimido no sirve como coste: son órdenes de magnitud
-    // distintos y NSCache desalojaría cuando ya fuera tarde.
+    // What the decoded bitmap actually weighs in memory. The compressed file size
+    // is useless as a cost figure — different orders of magnitude — and NSCache
+    // would evict too late if it used that instead.
     var decodedByteCount: Int { bytesPerRow * height }
 }

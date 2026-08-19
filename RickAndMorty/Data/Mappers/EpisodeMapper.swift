@@ -1,5 +1,6 @@
 import Foundation
 
+/// Converts an episode DTO into a domain entity.
 enum EpisodeMapper {
     static func map(_ dto: EpisodeDTO) -> Episode {
         Episode(
@@ -10,10 +11,9 @@ enum EpisodeMapper {
         )
     }
 
-    // Las fechas de emisión vienen siempre en inglés de EE. UU. ("December 2, 2013"),
-    // dé igual el locale del dispositivo, así que fijo el parseo a en_US_POSIX.
-    // Uso Date.ParseStrategy en vez de DateFormatter porque es Sendable: una sola
-    // instancia compartida es segura y no creo un formatter por episodio.
+    // Air dates always arrive as US English ("December 2, 2013"), regardless of device
+    // locale, so parsing is pinned to en_US_POSIX. Date.ParseStrategy over DateFormatter
+    // because it's Sendable — one shared instance, no formatter built per episode.
     private static let airDateStrategy = Date.ParseStrategy(
         format: "\(month: .wide) \(day: .defaultDigits), \(year: .defaultDigits)",
         locale: Locale(identifier: "en_US_POSIX"),

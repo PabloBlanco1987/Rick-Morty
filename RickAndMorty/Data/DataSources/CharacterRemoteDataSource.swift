@@ -1,10 +1,9 @@
 import Foundation
 
-// Sabe qué endpoints hay y con qué forma contesta cada uno. Nada más: aquí no cruza
-// ningún tipo de dominio ni se decide nada sobre caché.
-// Es un tipo aparte para que añadir soporte offline más adelante sea meter un
-// LocalCharacterDataSource al lado y una política en el repositorio, en vez de tener
-// que separar código de red de código de mapeo.
+/// Knows which endpoints exist and what shape each answers with — nothing more, no
+/// domain type crosses here and no caching gets decided. A separate type so adding
+/// offline support later means dropping in a LocalCharacterDataSource and a policy in
+/// the repository, not untangling network code from mapping code.
 struct CharacterRemoteDataSource: Sendable {
     private let client: any HTTPClient
 
@@ -24,8 +23,6 @@ struct CharacterRemoteDataSource: Sendable {
         try await client.send(RickAndMortyAPI.character(id: id))
     }
 
-    // Absorbe el cambio de forma del endpoint de lote: /episode/1,2 devuelve un array
-    // y /episode/1 un objeto suelto. Quien llame recibe siempre un array.
     func episodes(ids: [Int]) async throws(AppError) -> [EpisodeDTO] {
         guard !ids.isEmpty else { return [] }
 

@@ -1,9 +1,8 @@
 import Foundation
 
-// Convierte lo que llega de la API en entidades de dominio.
-// El mapeo no falla nunca: un status desconocido pasa a .unknown, una imagen que no
-// es URL pasa a nil, un type vacío pasa a nil. Un registro raro no puede costarle al
-// usuario la página entera de resultados.
+/// Converts what the API sends into domain entities. Mapping never fails: an unknown
+/// status becomes .unknown, a non-URL image becomes nil, an empty type becomes nil —
+/// one odd record can't cost the user the whole page of results.
 enum CharacterMapper {
     static func map(_ dto: CharacterDTO) -> Character {
         Character(
@@ -28,24 +27,19 @@ enum CharacterMapper {
         )
     }
 
-    // "unknown" es el centinela de la API para un lugar que no sabe —viene así, en
-    // minúscula y sin url—; en el dominio la ausencia es nil, no un texto que cada
-    // pantalla tendría que reconocer y traducir por su cuenta
+    // "unknown" is the API's sentinel for an unknown place. In the domain, absence is
+    // nil — not a string every screen would have to recognize and translate itself.
     private static func placeName(_ raw: String) -> String? {
         raw == "unknown" ? nil : raw
     }
 
-    // Solo vale una URL absoluta con esquema y host. Desde iOS 17, URL(string:) acepta
-    // casi cualquier texto —"not a url" pasa como referencia relativa y solo "" da nil—,
-    // así que sin esta comprobación la promesa de "nil si no es una URL válida" no la
-    // cumplía nadie, y el fallo aparecía después, en la descarga, en vez de aquí.
     private static func imageURL(from raw: String) -> URL? {
         guard let url = URL(string: raw), url.scheme != nil, url.host() != nil else { return nil }
         return url
     }
 
-    // La API devuelve enlaces a los episodios y el dominio quiere ids. Lo que no
-    // acaba en un entero lo descarto, antes que meter un id equivocado por defecto.
+    // The API returns episode links, the domain wants ids. Anything that doesn't end
+    // in an integer is dropped, rather than default to a wrong id.
     private static func episodeIDs(from urls: [String]) -> [Int] {
         urls.compactMap { Int(URL(string: $0)?.lastPathComponent ?? "") }
     }
