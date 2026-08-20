@@ -413,7 +413,9 @@ Lo que se cubre, por capas:
 Cosas que faltan **a sabiendas**, no por descuido. Cada una está comentada en el código,
 en el punto exacto donde entraría, como un `TODO: [Out of scope · README §8]` con
 tres partes —qué falta, por qué se decidió no hacerlo y por dónde entraría—, de modo que
-`grep -rn "TODO:" RickAndMorty` las lista a las tres y no encuentra ninguna más:
+`grep -rn "TODO:" RickAndMorty` las lista a las siete y no encuentra ninguna más.
+
+### Dentro de lo que está hecho
 
 - **Poda de la caché de disco**
   ([`ImageCache.swift`](RickAndMorty/Data/Cache/ImageCache.swift)). Hoy el directorio
@@ -431,6 +433,56 @@ tres partes —qué falta, por qué se decidió no hacerlo y por dónde entrarí
   directamente al detalle no hay nada que conservar y se pierde también el personaje, que
   sí había llegado; hacerlo bien pide un tipo de resultado parcial.
 
+### El resto de la API
+
+La API sirve tres colecciones —`character`, `location`, `episode`— y esta app recorre
+una. Los personajes están cubiertos de punta a punta: la lista, uno solo, varios por id
+y los cuatro filtros. Los episodios se piden en una sola petición agrupada por id,
+porque el detalle los necesita, y se mapean a una entidad de dominio, pero no son una
+colección que se pueda recorrer ni filtrar. Las localizaciones no se piden en ningún
+momento: el origen y la localización actual de un personaje llegan como nombres dentro
+del propio personaje y ahí se quedan.
+
+| Caso de uso | Endpoint | Hoy |
+|---|---|---|
+| Todas las localizaciones | `/location?page=` | Sin hacer |
+| Una localización | `/location/{id}` | Sin hacer |
+| Varias localizaciones | `/location/{ids}` | Sin hacer |
+| Filtrar localizaciones | `/location?name=&type=&dimension=` | Sin hacer |
+| Todos los episodios | `/episode?page=` | Sin hacer |
+| Un episodio | `/episode/{id}` | Se alcanza por la petición agrupada, sin pantalla |
+| Varios episodios | `/episode/{ids}` | **Hecho** — la lista de episodios del detalle |
+| Filtrar episodios | `/episode?name=&episode=` | Sin hacer |
+
+Es una decisión de alcance, no algo que obligue a reabrir el diseño. Cada pieza que hoy
+lleva personajes es ya indiferente a lo que lleva: `Page<Item>` es genérica; `Freshness`,
+`AppError`, `Endpoint`, el cliente con reintentos, el limitador de ritmo y la caché de
+imágenes nunca se enteran de qué hay al otro lado; y la paginación de la lista —prefetch,
+freno entre páginas, espera de la búsqueda— está escrita contra un número de página, no
+contra un personaje. Lo que añade un explorador de localizaciones es una vertical al lado
+de la que ya existe, sin nada por encima que reescribir.
+
+Cuatro `TODO` marcan por dónde crecería cada capa, uno por capa:
+
+- **Los endpoints**
+  ([`RickAndMortyAPI.swift`](RickAndMorty/Data/Network/RickAndMortyAPI.swift)). Listar y
+  filtrar es `characters(page:filter:)` con otra ruta y otro tipo de filtro; uno y varios
+  son las dos formas que ya están, incluida la rareza de que un id responde con un objeto
+  y varios con un array.
+- **El dominio**
+  ([`CharacterRepository.swift`](RickAndMorty/Domain/Repositories/CharacterRepository.swift)).
+  `LocationRepository` y `EpisodeRepository` como hermanos de este protocolo y no como
+  más métodos suyos, para que cada view model siga dependiendo solo de lo que usa.
+- **El id del lugar**
+  ([`CharacterMapper.swift`](RickAndMorty/Data/Mappers/CharacterMapper.swift)).
+  `PlaceDTO` decodifica el nombre y tira la `url` que viene al lado; conservar ese único
+  campo es lo que convierte un lugar de texto en algo direccionable.
+- **Las entradas**
+  ([`CharacterDetailView.swift`](RickAndMorty/Presentation/CharacterDetail/CharacterDetailView.swift)).
+  Las filas de origen y localización, y cada fila de episodio, son por donde el usuario
+  entraría; la navegación ya va por valor, así que cada una es un `NavigationLink(value:)`
+  en cuanto su fila lleve un id.
+
 ---
 
 ## 9. Siguientes pasos
@@ -443,10 +495,11 @@ diseño ya tiene preparado, y al final lo que abre superficie nueva.
    120 ms de asentamiento, la velocidad de *fling*, las ocho fichas por segundo— que se
    calibraron con criterio pero sin traza. Con los datos delante, cambiaría antes un
    número que una pieza; sin ellos, todo lo demás se prioriza a ojo.
-2. **Cerrar los tres límites del §8**, en el orden en que están: la poda de disco es la
-   más barata y la que un teléfono con poco espacio agradece; el reintento desde la lista
-   es la que el usuario ve; y el resultado parcial del detalle solo importa cuando exista
-   una entrada al detalle que no sea la lista, que es el punto siguiente.
+2. **Cerrar los tres límites de dentro de lo hecho** (§8), en el orden en que están: la
+   poda de disco es la más barata y la que un teléfono con poco espacio agradece; el
+   reintento desde la lista es la que el usuario ve; y el resultado parcial del detalle
+   solo importa cuando exista una entrada al detalle que no sea la lista, que es el punto
+   siguiente.
 3. **Enlace profundo al detalle** (`rickandmorty://character/1`, y de ahí *universal
    links*). El detalle ya se pide por id y no da por hecho que venga de la lista: está
    diseñado para esto. Es un `onOpenURL` en `RootView` que empuje el destino a la pila,
@@ -466,6 +519,12 @@ diseño ya tiene preparado, y al final lo que abre superficie nueva.
 7. **Integración continua**: compilar, pasar la suite y SwiftLint en cada *push*. El
    `xcodebuild test` del §1 es el flujo entero; lo que falta es el fichero que lo
    ejecute lejos de esta máquina.
+8. **Recorrer las otras dos colecciones** (§8): localizaciones y episodios como listas
+   propias, con sus filtros, y las filas de lugar y de episodio del detalle llevando por
+   fin a algún sitio. El último a propósito: es el único punto que añade superficie de
+   producto en vez de terminar lo que ya está en pantalla, y el que más pide una decisión
+   de producto antes que técnica —una pantalla de localización se hace cuando hay un
+   motivo para visitarla, no porque exista el endpoint.
 
 ---
 

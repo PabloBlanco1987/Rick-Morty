@@ -33,6 +33,17 @@ enum CharacterMapper {
         raw == "unknown" ? nil : raw
     }
 
+    // TODO: [Out of scope · README §8] Places as somewhere to go, not text to read.
+    /*
+     Reason: `PlaceDTO` decodes `name` and drops the `url` sitting right next to it, so
+     origin and location reach the domain as strings. That's everything the detail can
+     do with them today — there's no location screen to open.
+     Ready to plug in: `PlaceDTO` gains `url`, this file reads its id with the same
+     last-path-component rule `episodeIDs` already uses, and `Character`'s two `String?`
+     become a `Place` carrying name and id. The id is the whole point: it's what a row
+     would navigate by, and it costs one decoded field.
+     */
+
     private static func imageURL(from raw: String) -> URL? {
         guard let url = URL(string: raw), url.scheme != nil, url.host() != nil else { return nil }
         return url

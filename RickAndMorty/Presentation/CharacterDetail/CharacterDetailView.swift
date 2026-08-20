@@ -117,6 +117,17 @@ struct CharacterDetailView: View {
                         systemImage: "person"
                     )
 
+                    // TODO: [Out of scope · README §8] Places and episodes as destinations.
+                    /*
+                     Reason: the two rows below and every `EpisodeRow` further down are
+                     this app's natural way into the other two collections the API
+                     serves, and all three are plain text. Nothing to open, because
+                     there is no location screen and no episode screen to open.
+                     Ready to plug in: navigation here already goes by value, so each
+                     row becomes a `NavigationLink(value:)` as soon as it carries an id
+                     (see `CharacterMapper` for the place's), pushing its destination
+                     the same way the list pushes this screen.
+                     */
                     InfoRow(
                         label: String(localized: .characterDetailOriginLabel),
                         // An unknown place reads like the detail screen's other

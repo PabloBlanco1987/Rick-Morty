@@ -411,7 +411,9 @@ What's covered, by layer:
 Things missing **on purpose**, not by oversight. Each is commented in the code, at the
 exact spot it would go, as a `TODO: [Out of scope · README §8]` with three parts — what's
 missing, why it was decided against, and how it would plug in — so that
-`grep -rn "TODO:" RickAndMorty` lists all three and finds nothing else:
+`grep -rn "TODO:" RickAndMorty` lists all seven and finds nothing else.
+
+### Inside what's built
 
 - **Disk cache pruning**
   ([`ImageCache.swift`](RickAndMorty/Data/Cache/ImageCache.swift)). The directory grows
@@ -429,6 +431,55 @@ missing, why it was decided against, and how it would plug in — so that
   directly leaves nothing to preserve, so the character — which did arrive — is lost
   too; doing this properly needs a partial-result type.
 
+### The rest of the API
+
+The API serves three collections — `character`, `location`, `episode` — and this app
+browses one. Characters are covered end to end: the list, a single one, several by id,
+and all four filters. Episodes are fetched in one batched request by id, because the
+detail screen needs them, and mapped to a domain entity — but they aren't a collection
+you can browse or filter. Locations aren't fetched at all: a character's origin and
+current location arrive as names inside the character payload and stop there.
+
+| Use case | Endpoint | Today |
+|---|---|---|
+| Get all locations | `/location?page=` | Not built |
+| Get a single location | `/location/{id}` | Not built |
+| Get multiple locations | `/location/{ids}` | Not built |
+| Filter locations | `/location?name=&type=&dimension=` | Not built |
+| Get all episodes | `/episode?page=` | Not built |
+| Get a single episode | `/episode/{id}` | Reached through the batch call, no screen |
+| Get multiple episodes | `/episode/{ids}` | **Built** — the detail's episode list |
+| Filter episodes | `/episode?name=&episode=` | Not built |
+
+That's a scope decision, not something the design would have to be reopened for. Every
+piece that carries characters today is already indifferent to what it's carrying:
+`Page<Item>` is generic, `Freshness`, `AppError`, `Endpoint`, the retrying client, the
+rate limiter, and the image cache never learn what's on the other end, and the list's
+pagination — prefetch, the pause between pages, the debounce — is written against a page
+number, not against a character. What a location browser adds is one vertical slice
+alongside the existing one, with nothing above it to rewrite.
+
+Four `TODO`s mark where each layer would grow, one per layer:
+
+- **The endpoints**
+  ([`RickAndMortyAPI.swift`](RickAndMorty/Data/Network/RickAndMortyAPI.swift)). Listing
+  and filtering is `characters(page:filter:)` with another path and another filter type;
+  one and many are the two shapes already there, including the quirk that one id answers
+  with an object and several with an array.
+- **The domain**
+  ([`CharacterRepository.swift`](RickAndMorty/Domain/Repositories/CharacterRepository.swift)).
+  `LocationRepository` and `EpisodeRepository` as siblings of this protocol rather than
+  more methods on it, so each view model keeps depending only on what it uses.
+- **The place's id**
+  ([`CharacterMapper.swift`](RickAndMorty/Data/Mappers/CharacterMapper.swift)).
+  `PlaceDTO` decodes the name and drops the `url` beside it; keeping that one field is
+  what turns a place from text into something addressable.
+- **The entry points**
+  ([`CharacterDetailView.swift`](RickAndMorty/Presentation/CharacterDetail/CharacterDetailView.swift)).
+  The origin and location rows, and each episode row, are where the user would tap
+  through; navigation already goes by value, so each becomes a `NavigationLink(value:)`
+  once its row carries an id.
+
 ---
 
 ## 9. Next steps
@@ -441,10 +492,11 @@ already has ready, and last what opens new surface.
    decisions — the 120ms settle delay, the fling speed threshold, the eight tokens per
    second — calibrated with judgment but no trace. With data in hand, a number would
    change before a piece would; without it, everything else gets prioritized by eye.
-2. **Close the three limits in §8**, in the order they're listed: disk pruning is the
-   cheapest and the one a phone low on space would appreciate; the retry from the list
-   is the one the user sees; and the detail's partial result only matters once there's
-   an entry point to the detail other than the list, which is the next point.
+2. **Close the three limits inside what's built** (§8), in the order they're listed:
+   disk pruning is the cheapest and the one a phone low on space would appreciate; the
+   retry from the list is the one the user sees; and the detail's partial result only
+   matters once there's an entry point to the detail other than the list, which is the
+   next point.
 3. **Deep link to the detail** (`rickandmorty://character/1`, and from there, universal
    links). The detail already requests by id and doesn't assume it came from the list —
    it's built for this. It's an `onOpenURL` in `RootView` that pushes the destination
@@ -465,6 +517,12 @@ already has ready, and last what opens new surface.
 7. **Continuous integration**: build, run the suite, and SwiftLint on every push. §1's
    `xcodebuild test` is the whole flow; what's missing is the file that runs it away
    from this machine.
+8. **Browse the other two collections** (§8): locations and episodes as lists of their
+   own, with their filters, and the detail's places and episode rows finally leading
+   somewhere. Last on purpose — it's the only point here that adds product surface
+   rather than finishing what's already on screen, and the one that most deserves a
+   product decision before a technical one: a location screen is worth building when
+   there's a reason to visit it, not because the endpoint exists.
 
 ---
 

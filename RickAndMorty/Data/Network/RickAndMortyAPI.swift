@@ -56,4 +56,18 @@ enum RickAndMortyAPI {
     static func episodes(ids: [Int]) -> Endpoint {
         Endpoint(path: "/episode/\(ids.map(String.init).joined(separator: ","))")
     }
+
+    // TODO: [Out of scope · README §8] Locations, and episodes as a collection.
+    /*
+     Reason: every path in this file exists because a screen asks for it. `/location` in
+     any form, and `/episode` as something to browse and filter instead of fetch by id,
+     have no screen behind them — they would be surface nobody calls and no test
+     exercises.
+     Ready to plug in: the three shapes above are the three shapes needed. Listing and
+     filtering is `characters(page:filter:)` with another path and another filter type
+     — `/location` reads `name`, `type`, `dimension`; `/episode` reads `name` and
+     `episode` ("S01E08") — one is `character(id:)` with another path, and many is the
+     comma-joined path `episodes(ids:)` already builds, with the same "one id answers an
+     object, several answer an array" quirk for the data source to absorb.
+     */
 }
