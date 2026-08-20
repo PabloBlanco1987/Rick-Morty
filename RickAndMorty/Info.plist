@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The only key this file exists for. Everything else is still generated from
+	     INFOPLIST_KEY_* build settings and merged on top of this file at build time.
+
+	     It can't be a build setting: Xcode honours INFOPLIST_KEY_UILaunchScreen_Generation
+	     but silently drops INFOPLIST_KEY_UILaunchScreen_UIImageName, and Generation on its
+	     own emits UILaunchScreen nested inside itself and empty, which UIKit ignores.
+
+	     No UIColorName: the default is systemBackground, which is exactly what the list
+	     screen sits on, so the launch image hands over to the first frame without a
+	     background change. -->
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIImageName</key>
+		<string>LaunchLogo</string>
+	</dict>
+</dict>
+</plist>
